@@ -154,7 +154,7 @@ def init_latest_date() -> str:
 
 def prompt_input_date() -> str:
     """6.1 날짜 입력 프롬프트"""
-    global LATEST_DATE_STR
+    global LATEST_DATE_STR, LOGGED_IN_SID
     LATEST_DATE_STR = init_latest_date()
     print("최종 작업 날짜:", LATEST_DATE_STR)
     while True:
@@ -225,9 +225,9 @@ def prompt_password_new(student_path: Path, sid: str, students: Dict[str, str]) 
             content = f.read()
         with student_path.open("a", encoding="utf-8", newline="\n") as f:
             if content:
-                f.write(f"\n{sid}/{pw}")
+                f.write(f"\n{sid}/{pw}/{CURRENT_DATE_STR}")
             else:
-                f.write(f"{sid}/{pw}")
+                f.write(f"{sid}/{pw}/{CURRENT_DATE_STR}")
         students[sid] = pw
         #info("신규 회원 가입이 완료되었습니다.")
         break
@@ -292,17 +292,20 @@ def select_date() -> str | None:
         error("내부 현재 날짜가 설정되어 있지 않습니다.")
         return None
 
+    schedule_path = home_path() / SCHEDULE_FILE
     movie_path = home_path() / MOVIE_FILE
-    lines = movie_path.read_text(encoding="utf-8").splitlines()
+    lines = schedule_path.read_text(encoding="utf-8").splitlines()
 
     dates: list[str] = []
     for line in lines:
         if not line.strip():
             continue
         parts = line.split("/")
-        if len(parts) < 5:
+        if len(parts) != 7:
             continue
-        _, _, movie_date, _, _ = parts
+        _, movie_id, movie_date, _, _, valid, _ = parts
+        if valid != "T":
+            continue
         if movie_date > CURRENT_DATE_STR and movie_date not in dates:
             dates.append(movie_date)
 
@@ -337,25 +340,46 @@ def select_movie(selected_date: str) -> dict | None:
     6.4.2 영화 선택 — 입력받은 날짜의 영화를 시간순으로 제시하고 선택
     """
     movie_path = home_path() / MOVIE_FILE
-    lines = movie_path.read_text(encoding="utf-8").splitlines()
+    schedule_path = home_path() / SCHEDULE_FILE
+    scd_lines = schedule_path.read_text(encoding="utf-8").splitlines()
+    movie_lines = movie_path.read_text(encoding="utf-8").splitlines()
+
+    movie_map = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                # format: mov_id/title/runtime/valid/ts
+                if len(parts) == 5 and parts[3] == 'T':
+                    movie_map[parts[0]] = parts[1]
 
     movies: list[dict] = []
-    for line in lines:
+    for line in scd_lines:
         if not line.strip():
             continue
         parts = line.split("/")
-        if len(parts) < 5:
+        if len(parts) != 7:
             continue
-        movie_id, title, date_str, time_str, seat_vec = parts
-        if date_str.strip() == selected_date:
-            movies.append({
-                "id": movie_id.strip(),
-                "title": title.strip(),
-                "date": date_str.strip(),
-                "time": time_str.strip(),
-                "seats": ast.literal_eval(seat_vec.strip()),
-            })
-
+        if parts[-1] < CURRENT_DATE_STR:
+            continue
+        if parts[-2] != "T":
+            continue
+        
+        mov_id = parts[1]
+        if mov_id in movie_map:
+            title = movie_map[mov_id]
+            scd_id = parts[0]
+            date_str = parts[2]
+            time_str = parts[3]
+            seats = parts[4]
+            if date_str == selected_date:
+                movies.append({
+                    "id": scd_id,
+                    "title": title,
+                    "date": date_str,
+                    "time": time_str,
+                    "seats": ast.literal_eval(seats)
+                })
     def sort_key(m: dict) -> str:
         return m["time"].split("-")[0]
     movies.sort(key=sort_key)
@@ -403,8 +427,8 @@ def input_people(selected_movie: dict) -> int | None:
         return n
 
 def finalize_booking(selected_movie: dict, chosen_seats: list[str], student_id: str,
-                     movie_path: Path, booking_path: Path) -> None:
-    movie_id = selected_movie["id"]
+                     schedule_path: Path, booking_path: Path) -> None:
+    scd_id = selected_movie["id"]
     # 이번 예매의 좌석 벡터 만들기 (내가 선택한 좌석만 1)
     new_booking_vector = [0] * 25
     for seat in chosen_seats:
@@ -412,25 +436,26 @@ def finalize_booking(selected_movie: dict, chosen_seats: list[str], student_id: 
         col_idx = int(seat[1]) - 1
         new_booking_vector[row_idx * 5 + col_idx] = 1
 
-    # movie-schedule.txt 업데이트 (기존 1 유지 + 새 1 추가)
-    lines = movie_path.read_text(encoding="utf-8").splitlines()
+    # schedule-info.txt 업데이트 (기존 1 유지 + 새 1 추가)
+    lines = schedule_path.read_text(encoding="utf-8").splitlines()
     updated_lines: list[str] = []
     for line in lines:
         parts = line.strip().split("/")
-        if len(parts) < 5:
+        if len(parts) != 7:
             updated_lines.append(line)
             continue
-        movie_id_in_file = parts[0].strip()
-        if movie_id_in_file == movie_id:
-            seats = ast.literal_eval(parts[-1])
+        scd_id_in_file = parts[0].strip()
+        if scd_id_in_file == scd_id:
+            seats = ast.literal_eval(parts[-3])
             for i in range(25):
                 seats[i] = 1 if (seats[i] == 1 or new_booking_vector[i] == 1) else 0
-            parts[-1] = "[" + ",".join(map(str, seats)) + "]"
+            parts[-3] = "[" + ",".join(map(str, seats)) + "]"
             updated_line = "/".join(parts)
+
             updated_lines.append(updated_line)
         else:
             updated_lines.append(line)
-    movie_path.write_text("\n".join(updated_lines), encoding="utf-8")
+    schedule_path.write_text("\n".join(updated_lines), encoding="utf-8")
 
     # booking-info.txt에 새로운 예매 레코드 추가
     with open(booking_path, "a+", encoding="utf-8") as f:
@@ -438,9 +463,9 @@ def finalize_booking(selected_movie: dict, chosen_seats: list[str], student_id: 
         is_empty = (f.read().strip() == "")
         booking_vec_str = ",".join(map(str, new_booking_vector))
         if is_empty:
-            f.write(f"{student_id}/{movie_id}/[{booking_vec_str}]")
+            f.write(f"{student_id}/{scd_id}/[{booking_vec_str}]/T/{CURRENT_DATE_STR}")
         else:
-            f.write(f"\n{student_id}/{movie_id}/[{booking_vec_str}]")
+            f.write(f"\n{student_id}/{scd_id}/[{booking_vec_str}]/T/{CURRENT_DATE_STR}")
 
 def input_seats(selected_movie: dict, n: int) -> bool:
     """
@@ -475,13 +500,13 @@ def input_seats(selected_movie: dict, n: int) -> bool:
             print()
             continue
         else:
-            movie_path = home_path() / MOVIE_FILE
+            schedule_path = home_path() / SCHEDULE_FILE
             booking_path = home_path() / BOOKING_FILE
             finalize_booking(
                 selected_movie=selected_movie,
                 chosen_seats=chosen_seats,
                 student_id=LOGGED_IN_SID,
-                movie_path=movie_path,
+                schedule_path=schedule_path,
                 booking_path=booking_path,
             )
             print(f"{', '.join(chosen_seats)} 자리 예매가 완료되었습니다. 주 프롬프트로 돌아갑니다.")
@@ -528,18 +553,30 @@ def menu1() -> None:
 # ===== menu2: 예매 내역 조회 =====
 def get_movie_details() -> dict[str, dict]:
     movie_path = home_path() / MOVIE_FILE
-    lines = movie_path.read_text(encoding="utf-8").splitlines()
+    schedule_path = home_path() / SCHEDULE_FILE
+
+    movie_map = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                # format: mov_id/title/runtime/valid/ts
+                if len(parts) == 5 and parts[3] == 'T':
+                    movie_map[parts[0]] = parts[1]
+
+    lines = schedule_path.read_text(encoding="utf-8").splitlines()
     details: dict[str, dict] = {}
     for line in lines:
         if not line.strip():
             continue
         parts = line.split('/')
-        if len(parts) == 5:
-            movie_id = parts[0].strip()
-            title = parts[1].strip()
+        if len(parts) == 7:
+            schedule_id = parts[0].strip()
+            movie_id = parts[1].strip()
+            title = movie_map[movie_id]
             date_str = parts[2].strip()
             time_str = parts[3].strip()
-            details[movie_id] = {"title": title, "date": date_str, "time": time_str}
+            details[schedule_id] = {"title": title, "date": date_str, "time": time_str}
     return details
 
 def vector_to_seats(vector: list[int]) -> list[str]:
@@ -563,6 +600,7 @@ def menu2() -> None:
         return
     booking_path = home_path() / BOOKING_FILE
     movie_details = get_movie_details()
+
     try:
         lines = booking_path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
@@ -573,7 +611,7 @@ def menu2() -> None:
         if not line.strip():
             continue
         parts = line.split('/')
-        if len(parts) == 3 and parts[0].strip() == LOGGED_IN_SID:
+        if len(parts) == 5 and parts[0].strip() == LOGGED_IN_SID:
             movie_id = parts[1].strip()
             if movie_id not in movie_details:
                 continue
@@ -606,11 +644,11 @@ def load_records(path: Path) -> list[str]:
         return []
     return path.read_text(encoding="utf-8").splitlines()
 
-def parse_movie_record(line: str) -> dict:
-    uid, title, ddate, ttime, seats = line.split("/", 4)
+def parse_schedule_record(line: str) -> dict:
+    uid, movie_id, ddate, ttime, seats, _, _ = line.split("/")
     return {
         "uid": uid.strip(),
-        "title": title.strip(),
+        "movie_id": movie_id.strip(),
         "date": ddate.strip(),
         "time": ttime.strip(),
         "seats": ast.literal_eval(seats.strip()),
@@ -635,37 +673,50 @@ def select_cancelation(student_id: str) -> dict | None:
         return None
     booking_path = home_path() / BOOKING_FILE
     movie_path = home_path() / MOVIE_FILE
+    schedule_path = home_path() / SCHEDULE_FILE
     booking_lines = booking_path.read_text(encoding="utf-8").splitlines()
     movie_lines = movie_path.read_text(encoding="utf-8").splitlines()
+    schedule_lines = schedule_path.read_text(encoding="utf-8").splitlines()
+
+    movie_map = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                # format: mov_id/title/runtime/valid/ts
+                if len(parts) == 5 and parts[3] == 'T':
+                    movie_map[parts[0]] = parts[1]
 
     bookings: list[dict] = []
     for line in booking_lines:
         if not line.strip():
             continue
-        parts = line.split("/", 2)
-        if len(parts) < 3:
+        parts = line.split("/")
+        if len(parts) != 5:
             continue
-        student_who_booked, movie_id, seat_vec = parts
-        movie_date = movie_id[0:4] + "-" + movie_id[4:6] + "-" + movie_id[6:8]
-        if student_id == student_who_booked and movie_date > CURRENT_DATE_STR:
-            for mline in movie_lines:
-                if not mline.strip():
+        student_who_booked, scd_id, seat_vec, validity, timestamp = parts
+        if validity != "T":
+            continue
+        movie_date = scd_id[0:4] + "-" + scd_id[4:6] + "-" + scd_id[6:8]
+        if student_id == student_who_booked and movie_date > CURRENT_DATE_STR and validity == "T":
+            for scd_line in schedule_lines:
+                if not scd_line.strip():
                     continue
-                movie_parts = mline.split("/", 1)
-                if not movie_parts:
+                scd_parts = scd_line.split("/")
+                if not scd_parts:
                     continue
-                line_movie_id = movie_parts[0].strip()
+                line_scd_id = scd_parts[0].strip()
 
-                if movie_id == line_movie_id:
-                    pm = parse_movie_record(mline)
+                if scd_id == line_scd_id:
+                    pm = parse_schedule_record(scd_line)
                     if pm is None:
-                        error(f"parse_movie_record 실패: {mline}")
+                        error(f"parse_movie_record 실패: {scd_line}")
                         continue
                     
                     bookings.append({
-                        "movie_id": movie_id.strip(),
+                        "scd_id": scd_id.strip(),
                         "seats": ast.literal_eval(seat_vec.strip()),
-                        "title": pm["title"],
+                        "title": movie_map[pm["movie_id"]],
                         "date": pm["date"],
                         "time": pm["time"],
                     })
@@ -673,7 +724,7 @@ def select_cancelation(student_id: str) -> dict | None:
     if not bookings:
         info(f"{student_id}님의 예매 내역이 존재하지 않습니다. 주 프롬프트로 돌아갑니다.")
         return None
-    bookings.sort(key=lambda x: x["movie_id"])
+    bookings.sort(key=lambda x: x["scd_id"])
     bookings = bookings[:9]
     n = len(bookings)
     info(f"{student_id}님의 예매 내역입니다.")
@@ -697,10 +748,11 @@ def select_cancelation(student_id: str) -> dict | None:
         return bookings[num - 1]
 
 def confirm_cancelation(selected_booking: dict) -> None:
-    movie_path = home_path() / MOVIE_FILE
+    schedule_path = home_path() / SCHEDULE_FILE
     booking_path = home_path() / BOOKING_FILE
 
     seat_names = [f"{row}{col}" for row in "ABCDE" for col in range(1, 6)]
+
     seats = selected_booking.get('seats', [])
     if not seats:
         print("(예매된 좌석 없음)")
@@ -708,40 +760,44 @@ def confirm_cancelation(selected_booking: dict) -> None:
     booked = [seat_names[idx] for idx, v in enumerate(seats) if v == 1]
     seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
     n = input(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']} | {seat_str}의 예매를 취소하겠습니까? (Y/N) : ")
+    
     if n == 'Y':
         booking_lines = booking_path.read_text(encoding="utf-8").splitlines()
-        movie_lines = movie_path.read_text(encoding="utf-8").splitlines()
         new_booking_lines: list[str] = []
         for line in booking_lines:
             if not line.strip():
                 continue
             parts = line.split("/")
-            if len(parts) < 3:
+            if len(parts) != 5:
                 continue
-            student_who_booked, movie_id, seat_vec = parts
+            student_who_booked, scd_id, seat_vec, validity, _ = parts
             if (student_who_booked == LOGGED_IN_SID and 
-                movie_id == selected_booking['movie_id'] and 
-                ast.literal_eval(seat_vec.strip()) == selected_booking['seats']):
-                continue
+                scd_id == selected_booking['scd_id'] and 
+                ast.literal_eval(seat_vec.strip()) == selected_booking['seats'] and
+                validity == "T"):
+                line = f"{student_who_booked}/{scd_id}/{seat_vec}/F/{CURRENT_DATE_STR}"
             new_booking_lines.append(line)
-        new_movie_lines: list[str] = []
-        for line in movie_lines:
+
+        schedule_lines = schedule_path.read_text(encoding="utf-8").splitlines()
+        new_schedule_lines: list[str] = []
+        for line in schedule_lines:
             if not line.strip():
                 continue
-            parts = line.split("/", 4)
-            if len(parts) < 5:
+            parts = line.split("/")
+            if len(parts) != 7:
                 continue
-            uid, title, ddate, ttime, seats = parts
-            if uid == selected_booking['movie_id']:
+            uid, scd_id, ddate, ttime, seats, validity, _ = parts
+            if uid == selected_booking['scd_id']:
                 current_seats = ast.literal_eval(seats.strip())
                 restored_seats = [max(0, cs - ss) for cs, ss in zip(current_seats, selected_booking['seats'])]
                 seat_str2 = "[" + ",".join(map(str, restored_seats)) + "]"
-                new_line = f"{uid}/{title}/{ddate}/{ttime}/{seat_str2}"
-                new_movie_lines.append(new_line)
+                new_line = f"{uid}/{scd_id}/{ddate}/{ttime}/{seat_str2}/T/{CURRENT_DATE_STR}"
+                new_schedule_lines.append(new_line)
             else:
-                new_movie_lines.append(line)
+                new_schedule_lines.append(line)
+
         save_records(booking_path, new_booking_lines)
-        save_records(movie_path, new_movie_lines)
+        save_records(schedule_path, new_schedule_lines)
         info("예매가 취소되었습니다.")
     else:
         menu3()
@@ -753,6 +809,7 @@ def confirm_cancelation(selected_booking: dict) -> None:
 
 def menu3() -> None:
     movie_path = home_path() / MOVIE_FILE
+    schedule_path = home_path() / SCHEDULE_FILE
     student_path = home_path() / STUDENT_FILE
     booking_path = home_path() / BOOKING_FILE
     if LOGGED_IN_SID is None:
@@ -775,24 +832,34 @@ def menu4() -> None:
         error("가상 현재 날짜가 설정되지 않았습니다. 프로그램을 다시 시작해주세요.")
         return
     movie_path = home_path() / MOVIE_FILE
+    schedule_path = home_path() / SCHEDULE_FILE
+
+    movie_map = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                # format: mov_id/title/runtime/valid/ts
+                if len(parts) == 5 and parts[3] == 'T':
+                    movie_map[parts[0]] = parts[1]
     try:
-        lines = movie_path.read_text(encoding="utf-8").splitlines()
+        lines = schedule_path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
-        error(f"'{MOVIE_FILE}' 파일을 찾을 수 없습니다.")
+        error(f"'{SCHEDULE_FILE}' 파일을 찾을 수 없습니다.")
         return
     available_movies: list[dict] = []
     for line in lines:
         if not line.strip():
             continue
         parts = line.split('/')
-        if len(parts) == 5:
+        if len(parts) == 7:
             movie_date = parts[2].strip()
             if movie_date < CURRENT_DATE_STR:
                 continue
             available_movies.append({
                 "date": movie_date,
                 "time": parts[3].strip(),
-                "title": parts[1].strip(),
+                "title": movie_map[parts[1].strip()],
             })
     print(f"상영시간표 조회를 선택하셨습니다. 현재 조회 가능한 모든 상영 시간표를 출력합니다.")
     if not available_movies:
@@ -1466,6 +1533,15 @@ def admin_main_prompt_loop() -> None:
 def main() -> None:
     global CURRENT_DATE_STR, LATEST_DATE_STR, LOGGED_IN_SID
     students = {}
+    student_path = home_path() / STUDENT_FILE
+    for line in student_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("/")
+        if len(parts) != 3:
+            continue
+        sid, pw, _ = parts
+        students[sid] = pw
     # 1) 6.1 — 날짜 입력
     CURRENT_DATE_STR = prompt_input_date()  # 내부 현재 날짜 확정
 

@@ -56,7 +56,7 @@ CURRENT_DATE_STR: str | None = None  # 내부 현재 날짜(문자열, YYYY-MM-D
 LATEST_DATE_STR: str | None = None   # 최종 작업 날짜 
 LOGGED_IN_SID: str | None = None     # 로그인된 학번(2자리)
 
-# 밑에는 모두 함수로 모듈화 
+
 class Movie:
     movie_id: str
     movie_name: str

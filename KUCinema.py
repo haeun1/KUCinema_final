@@ -360,8 +360,6 @@ def select_movie(selected_date: str) -> dict | None:
         parts = line.split("/")
         if len(parts) != 7:
             continue
-        if parts[-1] < CURRENT_DATE_STR:
-            continue
         if parts[-2] != "T":
             continue
         
@@ -570,6 +568,8 @@ def get_movie_details() -> dict[str, dict]:
         if not line.strip():
             continue
         parts = line.split('/')
+        if parts[-2] != "T":
+            continue
         if len(parts) == 7:
             schedule_id = parts[0].strip()
             movie_id = parts[1].strip()
@@ -611,7 +611,7 @@ def menu2() -> None:
         if not line.strip():
             continue
         parts = line.split('/')
-        if len(parts) == 5 and parts[0].strip() == LOGGED_IN_SID:
+        if len(parts) == 5 and parts[0].strip() == LOGGED_IN_SID and parts[3].strip() == "T":
             movie_id = parts[1].strip()
             if movie_id not in movie_details:
                 continue

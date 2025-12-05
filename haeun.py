@@ -920,6 +920,54 @@ def verify_integrity():
     if not is_ok:
         error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
         sys.exit(1)
+    
+    is_ok, error_lines = validate_student_syntax(Path(STUDENT_FILE))
+    if not is_ok:
+        error(f"학생 데이터 파일\n{STUDENT_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        for line in error_lines:
+            print(line)
+        sys.exit(1)
+    
+    students = parse_student_data(Path(STUDENT_FILE))
+
+    is_ok, error_lines = validate_student_id_duplication(Path(STUDENT_FILE))
+    if not is_ok:
+        error(f"학생 데이터 파일\n{STUDENT_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        for line in error_lines:
+            print(line)
+        sys.exit(1)
+    
+    is_ok, error_lines = validate_booking_syntax(Path(BOOKING_FILE))
+    if not is_ok:
+        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        for line in error_lines:
+            print(line)
+        sys.exit(1)
+    
+    bookings = parse_booking_data(Path(BOOKING_FILE))
+
+    is_ok = check_duplicate_seats(bookings)
+    if not is_ok:
+        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        sys.exit(1)
+
+    is_ok = check_seat_consistency(bookings)
+    if not is_ok:
+        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        sys.exit(1)                 
+
+    is_ok = check_schedule_id_reference(bookings, schedules)
+    if not is_ok:
+        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        sys.exit(1)
+
+    is_ok = check_student_id_reference(bookings, students)      
+    if not is_ok:
+        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        sys.exit(1)
+
+    remove_zero_seat_bookings(Path(BOOKING_FILE))
+        
   
 
 def main():

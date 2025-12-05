@@ -1330,6 +1330,7 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
         
         # 수정된 라인 저장
         modified_lines = []
+        modified = False  # 수정 여부 추적
         
         for line in lines:
             line = line.rstrip('\n')
@@ -1345,6 +1346,7 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
                 if all(seat == 0 for seat in seats) and record_valid == 'T':
                     # 유효 여부를 F로 변경, 타임스탬프를 현재 날짜로 변경
                     modified_line = f"{student_id}/{schedule_id}/{seats_vector}/F/{CURRENT_DATE_STR}\n"
+                    modified = True  # 수정 발생
                 else:
                     modified_line = line + '\n'
             else:
@@ -1355,6 +1357,10 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
         # 파일 쓰기
         with open(booking_path, 'w', encoding='utf-8') as f:
             f.writelines(modified_lines)
+        
+        # 수정이 발생했을 때만 경고 메시지 출력
+        if modified:
+            warn("예매 데이터 파일에 무의미한 예매 레코드가 존재합니다. 해당 예매 레코드를 삭제합니다.")
     
     except FileNotFoundError:
         pass
@@ -1456,22 +1462,22 @@ def verify_integrity():
 
     is_ok = check_duplicate_seats(bookings)
     if not is_ok:
-        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     is_ok = check_seat_consistency(bookings)
     if not is_ok:
-        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)                 
 
     is_ok = check_schedule_id_reference(bookings, schedules)
     if not is_ok:
-        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     is_ok = check_student_id_reference(bookings, students)      
     if not is_ok:
-        error(f"예매 데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     remove_zero_seat_bookings(Path(BOOKING_FILE))

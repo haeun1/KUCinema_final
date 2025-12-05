@@ -112,7 +112,7 @@ def check_file(data_path: Path) -> None:
     #     home_dir = Path(os.path.expanduser("~")).resolve()  # 홈 경로 반환
     #     print(home_dir)
     # except Exception as e:
-    #     error(f"홈 경로를 파악할 수 없습니다! 프로그램을 종료합니다. {e}")
+    #     error(f"홈 경로를 파악할 수 없습니다! 프로그램을 종료합니다.")
     #     sys.exit(1)
     home_dir = Path(os.getcwd())
     # print(home_dir)
@@ -120,17 +120,29 @@ def check_file(data_path: Path) -> None:
     # 항상 '홈 디렉터리 바로 아래'에 데이터 파일이 위치한다고 가정
     # (data_path에 디렉터리 정보가 들어 있어도 파일 이름만 사용)
     target_path = home_dir / data_path.name
+
+    if data_path.name == MOVIE_FILE:
+        file_name = "영화"
+    elif data_path.name == STUDENT_FILE:
+        file_name = "학생"
+    elif data_path.name == BOOKING_FILE:
+        file_name = "예매"
+    elif data_path.name == SCHEDULE_FILE:
+        file_name = "상영"
+    else:
+        file_name = "알 수 없는 파일"
+
     # print(target_path)
 
     # 2. 파일 존재 여부 확인 및 없으면 생성
     if not target_path.exists():
-        warn(f"홈 경로 {home_dir}에 데이터 파일이 없습니다: {target_path.name}")
+        warn(f"홈 경로 {home_dir}에 {file_name} 데이터 파일이 없습니다.")
         try:
             # 상위 디렉터리는 홈 디렉터리이므로 별도 생성 없이 파일만 생성
             target_path.write_text("", encoding="utf-8", newline="\n")
-            info(f"... 홈 경로에 빈 데이터 파일을 새로 생성했습니다:\n{target_path}")
+            info(f"... 홈 경로에 빈 {file_name} 데이터 파일을 새로 생성했습니다:\n{target_path}")
         except Exception:
-            error("데이터 파일을 생성하지 못했습니다! 프로그램을 종료합니다.")
+            error(f"홈 경로에 {file_name} 데이터 파일을 생성하지 못했습니다! 프로그램을 종료합니다.")
             sys.exit(1)
 
     # 3. 입출력(읽기/쓰기) 권한 확인
@@ -138,7 +150,7 @@ def check_file(data_path: Path) -> None:
     try:
         _ = target_path.read_text(encoding="utf-8")
     except Exception:
-        error(f"데이터 파일\n{target_path}\n에 대한 읽기 권한이 없습니다! 프로그램을 종료합니다.")
+        error(f"{file_name} 데이터 파일\n{target_path} 에 대한 입출력 권한이 없습니다! 프로그램을 종료합니다.")
         sys.exit(1)
 
     # 3-2. 쓰기 권한 확인 (내용 훼손 방지를 위해 빈 문자열만 추가 시도)
@@ -146,7 +158,7 @@ def check_file(data_path: Path) -> None:
         with target_path.open("a", encoding="utf-8") as f:
             f.write("")
     except Exception:
-        error(f"데이터 파일\n{target_path}\n에 대한 쓰기 권한이 없습니다! 프로그램을 종료합니다.")
+        error(f"{file_name} 데이터 파일\n{target_path} 에 대한 입출력 권한이 없습니다! 프로그램을 종료합니다.")
         sys.exit(1)
 
 ############################################################
@@ -1387,34 +1399,34 @@ def verify_integrity():
 
     is_ok, error_lines = validate_schedule_id_duplication(Path(SCHEDULE_FILE))
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         for line in error_lines:
             print(line)
         sys.exit(1)
 
     is_ok = check_sorted_schedule_id(schedules) 
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
     
     is_ok = check_movie_id_reference(schedules, movies)
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     is_ok = check_daily_schedule_limit(schedules)
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     is_ok = check_schedule_time_conflict(schedules, movies)
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
     is_ok = check_schedule_end_time_before_midnight(schedules, movies)
     if not is_ok:
-        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다! 프로그램을 종료합니다.")
+        error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
     
     is_ok, error_lines = validate_student_syntax(Path(STUDENT_FILE))

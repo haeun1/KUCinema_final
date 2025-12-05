@@ -1465,7 +1465,7 @@ def verify_integrity():
         error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)
 
-    is_ok = check_seat_consistency(bookings)
+    is_ok = check_seat_consistency(bookings, schedules)
     if not is_ok:
         error(f"데이터 파일\n{BOOKING_FILE}가 올바르지 않습니다!\n 의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
         sys.exit(1)                 

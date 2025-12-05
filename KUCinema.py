@@ -1472,6 +1472,960 @@ def admin_menu3():
         # 6. 함수 종료 (처리 과정 6)
         return
 # ---------------------------------------------------------------
+# 8.5 상영 시간표 추가
+# ---------------------------------------------------------------
+
+def show_available_movie() -> list[str]:
+    """
+    movie-info.txt에서 'T'인 영화 목록을 출력하고, 유효한 영화 ID 리스트를 반환
+    """
+    movie_path = home_path() / MOVIE_FILE
+    valid_ids = []
+    
+    print("영화 데이터 파일에 존재하는 영화 목록입니다. 상영 시간표에 추가할 영화 고유 번호를 입력하세요.")
+    print("영화 고유 번호 | 영화 제목 | 러닝 타임(분)")
+    
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                parts = line.split('/')
+                # 형식: id/title/runtime/valid/timestamp
+                if len(parts) >= 5 and parts[3] == 'T':
+                    print(f"{parts[0]} | {parts[1]} | {parts[2]}")
+                    valid_ids.append(parts[0])
+    
+    print("0. 뒤로 가기")
+    return valid_ids
+
+def input_movie_id() -> str | None:
+    """
+    상영할 영화 ID 입력 및 검증
+    """
+    while True:
+        valid_ids = show_available_movie()
+        movie_id = input("입력: ").strip()
+        
+        if movie_id == "0":
+            return None
+            
+        if not re.fullmatch(r"\d{4}", movie_id):
+             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+             continue
+             
+        if movie_id not in valid_ids:
+            print("상영 시간표에 추가 가능한 영화 고유 번호만 입력 가능합니다. 다시 입력해주세요.")
+            continue
+            
+        return movie_id
+
+def input_scd_date(movie_id: str) -> str | None:
+    """
+    상영 날짜 입력 및 검증 (시간 여행, 일일 쿼터 제한)
+    """
+    # 영화 정보 출력을 위해 영화 제목, 러닝타임 가져오기
+    movie_title = ""
+    movie_runtime = ""
+    movie_path = home_path() / MOVIE_FILE
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5 and parts[0] == movie_id:
+                    movie_title = parts[1]
+                    movie_runtime = parts[2]
+                    break
+    
+    print(f"<{movie_id} | {movie_title} | {movie_runtime}>을 선택하셨습니다.")
+
+    while True:
+        scd_date = input("위 영화의 영화 상영 날짜를 입력해주세요 (YYYY-MM-DD): ").strip()
+        
+        if scd_date == "0":
+            return None
+            
+        # 1. 문법 형식 검사
+        if not RE_DATE.fullmatch(scd_date):
+            print("날짜 형식이 맞지 않습니다. 다시 입력해주세요.")
+            continue
+            
+        # 3. 시간 여행 방지 (현재 날짜보다 이전인지 확인)
+        if scd_date < CURRENT_DATE_STR:
+            print("내부 현재 날짜 이전의 날짜입니다. 다시 입력해주세요.")
+            continue
+            
+        if not RE_DATE.fullmatch(scd_date):
+            info("날짜 형식이 맞지 않습니다. 다시 입력해주세요")
+            continue
+        y, m, d = int(scd_date[0:4]), int(scd_date[5:7]), int(scd_date[8:10])
+        try:
+            date(y, m, d)
+        except ValueError:
+            info(f"존재하지 않는 날짜입니다. 다시 입력해주세요.")
+            continue
+        return scd_date
+    
+        # 4. 일일 상영 수 제한 (10개 미만인지 확인)
+        cnt = 0
+        schedule_path = home_path() / SCHEDULE_FILE
+        if schedule_path.exists():
+            with open(schedule_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('/')
+                    if len(parts) >= 7 and parts[2] == scd_date and parts[5] == 'T':
+                        cnt += 1
+        
+        if cnt >= 10:
+            print("일일 영화 상영 수를 초과했습니다. 다시 입력해주세요.")
+            continue
+            
+        return scd_date
+
+# ---------------------------------------------------------------
+# 상영 시간표 중복 검사 함수들 (2차 설계서 8.5, 8.6 반영)
+# ---------------------------------------------------------------
+
+def chk_overlap_date(scd_id: str, running_time: int, scd_date: str) -> bool:
+    """
+    [설계서 9. chk_overlap_date]
+    영화 날짜를 수정할 때, 변경된 날짜에서 시간 충돌이 발생하는지 검사
+    """
+    schedule_path = home_path() / SCHEDULE_FILE
+    
+    # 1. schedule-info.txt에서 scd_id에 해당하는 레코드의 '영화 시작 시간'을 찾음
+    scd_time = ""
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 7 and parts[0] == scd_id and parts[5] == 'T':
+                    scd_time = parts[3] # 영화 시작 시간
+                    break
+    
+    if not scd_time: return False # 레코드가 없으면 검사 불가 (False 반환)
+
+    # 2. 시간 계산 (분 단위)
+    h, m = map(int, scd_time.split(':'))
+    newStart = h * 60 + m
+    newEnd = newStart + running_time
+
+    # 3. schedule-info.txt에서 조건에 맞는 레코드 필터링 및 중복 검사
+    # 조건: 영화 날짜 == scd_date AND 상영 고유 번호 != scd_id AND 유효 여부 == "T"
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) < 7: continue
+                
+                ex_scd_id = parts[0]
+                ex_movie_id = parts[1]
+                ex_date = parts[2]
+                ex_time = parts[3]
+                ex_valid = parts[5]
+
+                # 필터링
+                if ex_date == scd_date and ex_scd_id != scd_id and ex_valid == 'T':
+                    # A. 영화 고유 번호를 old_movie_id에 저장
+                    old_movie_id = ex_movie_id
+                    
+                    # B. movie-info.txt에서 old_movie_id의 러닝 타임 가져오기
+                    old_running_time = 0
+                    movie_path = home_path() / MOVIE_FILE
+                    if movie_path.exists():
+                        with open(movie_path, 'r', encoding='utf-8') as mf:
+                            for mline in mf:
+                                mparts = mline.strip().split('/')
+                                if len(mparts) >= 5 and mparts[0] == old_movie_id and mparts[3] == 'T':
+                                    old_running_time = int(mparts[2])
+                                    break
+                    
+                    # C. oldStart, oldEnd 계산
+                    eh, em = map(int, ex_time.split(':'))
+                    oldStart = eh * 60 + em
+                    oldEnd = oldStart + old_running_time
+                    
+                    # D. 겹침 판별
+                    if newStart < oldEnd and newEnd > oldStart:
+                        return True # 겹침
+
+    return False # 겹치지 않음
+
+def chk_overlap_time(scd_id: str, running_time: int) -> bool:
+    """
+    [설계서 8. chk_overlap_time]
+    영화 시작 시간을 수정할 때 (로직상 파일의 시간을 읽어옴), 시간 충돌 검사
+    """
+    schedule_path = home_path() / SCHEDULE_FILE
+
+    # 1. scd_id에서 날짜 파싱 (YYYYMMDD -> YYYY-MM-DD)
+    # scd_id는 12자리: YYYY(0:4) MM(4:6) DD(6:8) HH(8:10) mm(10:12)
+    yyyy = scd_id[0:4]
+    mm = scd_id[4:6]
+    dd = scd_id[6:8]
+    scd_date = f"{yyyy}-{mm}-{dd}"
+
+    # 2. schedule-info.txt에서 scd_id 레코드의 '영화 시작 시간'을 scd_time에 저장
+    scd_time = ""
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 7 and parts[0] == scd_id and parts[5] == 'T':
+                    scd_time = parts[3]
+                    break
+    
+    if not scd_time: return False
+
+    # 3. 시간 계산 (newStart, newEnd)
+    h, m = map(int, scd_time.split(':'))
+    newStart = h * 60 + m
+    newEnd = newStart + running_time
+
+    # 4. 24:00(1440분) 초과 검사
+    if newEnd > 1440: # 설계서: 1440 이상 (1440 포함) -> 24:00 이후
+        print("영화 종료 시간은 24:00 이후일 수 없습니다. 다시 입력해주세요.")
+        return True
+
+    # 5. schedule-info.txt 필터링 및 중복 검사
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) < 7: continue
+                
+                ex_scd_id = parts[0]
+                ex_movie_id = parts[1]
+                ex_date = parts[2]
+                ex_time = parts[3]
+                ex_valid = parts[5]
+
+                # 조건: 날짜 일치 AND ID 불일치 AND 유효함
+                if ex_date == scd_date and ex_scd_id != scd_id and ex_valid == 'T':
+                    # A. old_movie_id
+                    old_movie_id = ex_movie_id
+                    
+                    # B. old_running_time
+                    old_running_time = 0
+                    movie_path = home_path() / MOVIE_FILE
+                    if movie_path.exists():
+                        with open(movie_path, 'r', encoding='utf-8') as mf:
+                            for mline in mf:
+                                mparts = mline.strip().split('/')
+                                if len(mparts) >= 5 and mparts[0] == old_movie_id and mparts[3] == 'T':
+                                    old_running_time = int(mparts[2])
+                                    break
+
+                    # C. oldStart, oldEnd
+                    eh, em = map(int, ex_time.split(':'))
+                    oldStart = eh * 60 + em
+                    oldEnd = oldStart + old_running_time
+                    
+                    # D. 겹침 판별
+                    if newStart < oldEnd and newEnd > oldStart:
+                        return True
+
+    return False
+# ---------------------------------------------------------------
+# 8.6 상영 시간표 수정
+# ---------------------------------------------------------------
+
+def print_modifiable_scd_list() -> set:
+    """
+    수정 가능한(예매 없음, 미래, 유효함) 스케줄 목록을 출력하고 ID 집합 반환
+    """
+    schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE
+    
+    modifiable_ids = set()
+    
+    if not schedule_path.exists():
+        return modifiable_ids
+
+    # 영화 정보 로드
+    movie_info = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5 and parts[3] == 'T':
+                    movie_info[parts[0]] = {'title': parts[1], 'runtime': parts[2]}
+
+    print("상영 데이터 파일에 존재하는 수정 가능한 상영 시간표 목록입니다. 수정할 상영 고유 번호를 입력하세요.")
+    print("상영 고유 번호 | 영화 제목 | 러닝 타임(분) | 영화 날짜 | 영화 시작 시간")
+
+    schedules_to_print = []
+    with open(schedule_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split('/')
+            # 구조: scd_id/movie_id/date/time/vec/valid/ts
+            if len(parts) < 7: continue
+            
+            scd_id, mid, date_str, time_str, vec_str, valid = parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
+            
+            # 조건: 유효T, 날짜>=현재, 벡터가 모두 0(예매 없음)
+            try:
+                seats = ast.literal_eval(vec_str)
+                is_empty_seats = all(s == 0 for s in seats)
+            except:
+                is_empty_seats = False
+
+            if valid == 'T' and date_str >= CURRENT_DATE_STR and is_empty_seats:
+                m_data = movie_info.get(mid, {'title': '알수없음', 'runtime': '0'})
+                schedules_to_print.append({
+                    'id': scd_id,
+                    'title': m_data['title'],
+                    'runtime': m_data['runtime'],
+                    'date': date_str,
+                    'time': time_str
+                })
+                modifiable_ids.add(scd_id)
+
+    # 정렬하여 출력
+    schedules_to_print.sort(key=lambda x: x['id'])
+    for s in schedules_to_print:
+        print(f"{s['id']} | {s['title']} | {s['runtime']} | {s['date']} | {s['time']}")
+
+    print("0. 뒤로 가기")
+    return modifiable_ids
+
+def input_modify_scd_id(modifiable_ids: set) -> str | None:
+    """
+    수정할 상영 고유 번호 입력 및 검증
+    """
+    while True:
+        scd_id = input("입력: ").strip()
+        
+        if scd_id == "0":
+            return None
+            
+        # 문법 형식 검사 (12자리 숫자)
+        if not re.fullmatch(r"\d{12}", scd_id):
+             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+             continue
+             
+        # 의미 규칙 검사 (목록에 존재 여부)
+        if scd_id not in modifiable_ids:
+            print("수정 가능한 상영 고유 번호만 입력 가능합니다. 다시 입력해주세요.")
+            continue
+            
+        return scd_id
+
+def input_modify_scd_func(scd_id: str) -> str | None:
+    """
+    수정할 항목(날짜/시간) 선택
+    """
+    # 선택된 스케줄 정보 출력을 위해 파일 읽기
+    target_scd = None
+    schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE
+    
+    # 영화 정보 로드
+    movie_info = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5:
+                    movie_info[parts[0]] = {'title': parts[1], 'runtime': parts[2]}
+
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 7 and parts[0] == scd_id:
+                    mid = parts[1]
+                    m_data = movie_info.get(mid, {'title': '알수없음', 'runtime': '0'})
+                    target_scd = {
+                        'id': scd_id, 'title': m_data['title'], 'runtime': m_data['runtime'],
+                        'date': parts[2], 'time': parts[3]
+                    }
+                    break
+    
+    if target_scd:
+        print(f"<{target_scd['id']} | {target_scd['title']} | {target_scd['runtime']} | {target_scd['date']} | {target_scd['time']}>을 선택하셨습니다. 수정할 번호를 선택해주세요.")
+
+    print("1. 영화 날짜 수정")
+    print("2. 영화 시작 시간 수정")
+    print("0. 뒤로 가기")
+
+    while True:
+        func = input("입력: ").strip()
+        
+        if func == "0":
+            return None
+            
+        if func not in ["1", "2"]:
+            if not re.fullmatch(r"\d", func):
+                 print("올바르지 않은 입력입니다. 원하는 동작에 해당하는 번호만 입력하세요.")
+            else:
+                 print("범위 밖의 입력입니다. 다시 입력해주세요.")
+            continue
+            
+        return func
+
+def input_modify_scd_date(scd_id: str) -> str | None:
+    """
+    수정할 영화 날짜 입력 및 검증
+    (is_valid_date_string, count_daily_schedules 함수 없이 직접 구현)
+    """
+    # 러닝타임 가져오기 (chk_overlap_date 호출용)
+    schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE
+    runtime = 0
+    
+    # 스케줄에서 movie_id 찾기 -> movie_info에서 runtime 찾기
+    mid = ""
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 7 and parts[0] == scd_id: # 7개 필드 확인
+                    mid = parts[1]
+                    break
+    if mid and movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5 and parts[0] == mid:
+                    runtime = int(parts[2])
+                    break
+
+    while True:
+        scd_date = input("수정할 영화 상영 날짜를 입력해주세요 (YYYY-MM-DD): ").strip()
+        
+        if scd_date == "0":
+            return None
+            
+        # 1. 문법 형식 검사
+        if not RE_DATE.fullmatch(scd_date):
+            print("날짜 형식이 맞지 않습니다. 다시 입력해주세요.")
+            continue
+        
+        # 2. 날짜 유효성(그레고리력) 검사 (직접 구현)
+        y, m, d = int(scd_date[0:4]), int(scd_date[5:7]), int(scd_date[8:10])
+        try:
+            date(y, m, d)
+        except ValueError:
+            print("존재하지 않는 날짜입니다. 다시 입력해주세요.")
+            continue
+
+        # 3. 시간 여행 방지
+        if scd_date < CURRENT_DATE_STR:
+             print("내부 현재 날짜 이전의 날짜입니다. 다시 입력해주세요.")
+             continue
+
+        # 4. 일일 상영 수 제한 (10개 미만인지 직접 카운트)
+        cnt = 0
+        if schedule_path.exists():
+            with open(schedule_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('/')
+                    # 구조: scd_id/movie_id/date/time/vec/valid/ts
+                    # 자기 자신은 날짜가 바뀌므로 어차피 카운트에서 제외되거나,
+                    # 날짜가 안 바뀌면 자기 포함 10개인지 체크해야 함.
+                    # 수정이므로 '바뀔 날짜(scd_date)'에 있는 다른 스케줄 개수 + (만약 날짜 안 바꾸면 나 포함) 확인
+                    # 하지만 여기선 '바뀔 날짜'에 이미 있는 유효한(T) 스케줄 개수만 세면 됨.
+                    
+                    # 주의: 내가 날짜를 안 바꾸면(같은 날짜 입력), 나는 이미 파일에 T로 존재하므로 cnt에 포함됨.
+                    # 내가 날짜를 바꾸면, 바뀔 날짜엔 내가 아직 없으므로 cnt에 포함 안 됨.
+                    # 기획서 의도상 "해당 날짜의 상영 레코드 수"를 제한하는 것이므로
+                    # 수정될 날짜에 이미 있는 스케줄 수를 세되, '자기 자신'은 제외하고 세는 것이 논리적으로 맞음 (수정 후 T로 들어갈 거니까).
+                    # 다만 input_scd_date(신규추가) 로직과 동일하게 '파일에 있는 T 개수'를 그대로 세면
+                    # 날짜 변경 시: 대상 날짜의 기존 스케줄 수 (내 거 없음) -> 10개면 추가 불가 (OK)
+                    # 날짜 미변경 시: 내 거 포함 10개 -> 수정 불가? (내 거 1개 빼고 9개여야 수정 가능)
+                    
+                    if len(parts) >= 7 and parts[2] == scd_date and parts[5] == 'T':
+                         # 수정 기능이므로 자기 자신(scd_id)은 카운트에서 제외해야 정확함
+                         if parts[0] != scd_id:
+                            cnt += 1
+        
+        if cnt >= 10:
+             print("일일 영화 상영 수를 초과했습니다. 다시 입력해주세요.")
+             continue
+
+        # 5. 중복 검사 (chk_overlap_date 사용)
+        if chk_overlap_date(scd_id, runtime, scd_date):
+             print("상영 시간은 다른 상영 시간표와 중복될 수 없습니다. 다시 입력해주세요.")
+             continue
+
+        return scd_date
+
+def input_modify_scd_time(scd_id: str) -> str | None:
+    """
+    수정할 영화 시작 시간 입력 및 검증
+    """
+    # 러닝타임 가져오기
+    schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE
+    runtime = 0
+    
+    mid = ""
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if parts[0] == scd_id:
+                    mid = parts[1]
+                    break
+    if mid and movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if parts[0] == mid:
+                    runtime = int(parts[2])
+                    break
+
+    while True:
+        scd_time = input("수정할 영화 시작 시간을 입력해주세요 (HH:MM): ").strip()
+        
+        if scd_time == "0":
+            return None
+            
+        if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
+            print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            continue
+
+        # 중복 검사 (chk_overlap_time 사용 - 내부에서 24시 초과 검사도 수행됨)
+        if chk_overlap_time(scd_id, runtime):
+             print("상영 시간은 다른 상영 시간표와 중복될 수 없습니다. 다시 입력해주세요.")
+             continue
+             
+        return scd_time
+    
+
+def modify_scd_date(scd_id: str, scd_date: str) -> None:
+    """
+    상영 날짜 수정 (Soft Update) - 줄바꿈 오류 수정됨
+    """
+    lines = []
+    schedule_path = home_path() / SCHEDULE_FILE
+    
+    target_line = ""
+    
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            # readlines() 대신 한 줄씩 읽어서 strip() 후 처리하는 것이 안전함
+            for line in f:
+                if line.strip(): # 빈 줄 제외
+                    lines.append(line.strip()) # 개행 문자 제거하고 저장
+            
+    # 2. 기존 레코드 F 처리 및 타겟 찾기
+    # 인덱스가 아니라 리스트를 순회하며 처리
+    new_lines = []
+    for line in lines:
+        parts = line.split('/')
+        if parts[0] == scd_id and parts[5] == 'T':
+            parts[5] = 'F'
+            parts[6] = CURRENT_DATE_STR
+            target_line = line
+            new_lines.append("/".join(parts)) # 수정된 내용 추가
+        else:
+            new_lines.append(line) # 기존 내용 그대로 추가
+            
+    if target_line:
+        parts = target_line.split('/')
+        mid = parts[1]
+        old_time = parts[3]
+        
+        # 새 ID 생성
+        new_scd_id = scd_date.replace("-", "") + old_time.replace(":", "")
+        zero_vector = "[" + ",".join(["0"]*25) + "]"
+        
+        # 새 레코드 추가
+        new_record = f"{new_scd_id}/{mid}/{scd_date}/{old_time}/{zero_vector}/T/{CURRENT_DATE_STR}"
+        new_lines.append(new_record)
+        
+        # 정렬
+        new_lines.sort(key=lambda x: x.split('/')[0]) 
+
+        # [핵심 수정] 저장 시 개행 문자(\n)를 명시적으로 붙여서 join
+        with open(schedule_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(new_lines) + "\n") # 마지막 줄에도 개행 추가 권장
+
+def modify_scd_time(scd_id: str, scd_time: str) -> None:
+    """
+    상영 시간 수정 (Soft Update) - 줄바꿈 오류 수정됨
+    """
+    lines = []
+    schedule_path = home_path() / SCHEDULE_FILE
+    
+    target_line = ""
+    
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+             for line in f:
+                if line.strip():
+                    lines.append(line.strip())
+            
+    new_lines = []
+    for line in lines:
+        parts = line.split('/')
+        if parts[0] == scd_id and parts[5] == 'T':
+            parts[5] = 'F'
+            parts[6] = CURRENT_DATE_STR
+            target_line = line
+            new_lines.append("/".join(parts))
+        else:
+            new_lines.append(line)
+            
+    if target_line:
+        parts = target_line.split('/')
+        mid = parts[1]
+        old_date = parts[2]
+        
+        # 새 ID 생성
+        new_scd_id = old_date.replace("-", "") + scd_time.replace(":", "")
+        zero_vector = "[" + ",".join(["0"]*25) + "]"
+        
+        new_record = f"{new_scd_id}/{mid}/{old_date}/{scd_time}/{zero_vector}/T/{CURRENT_DATE_STR}"
+        new_lines.append(new_record)
+        
+        # 정렬
+        new_lines.sort(key=lambda x: x.split('/')[0])
+
+        # [핵심 수정] 저장 시 개행 문자(\n)를 명시적으로 붙여서 join
+        with open(schedule_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(new_lines) + "\n")
+
+def admin_menu5():
+    """
+    8.6 상영 시간표 수정 메인 함수
+    """
+    while True:
+        # 1. 수정 가능한 목록 출력 및 ID 입력
+        modifiable_ids = print_modifiable_scd_list()
+        scd_id = input_modify_scd_id(modifiable_ids)
+        
+        if scd_id is None:
+            return # 종료
+            
+        while True:
+            # 2. 수정 메뉴 선택
+            func = input_modify_scd_func(scd_id)
+            
+            if func is None:
+                break # 상위(ID 입력)로 이동
+                
+            # 3. 날짜 수정
+            if func == "1":
+                scd_date = input_modify_scd_date(scd_id)
+                if scd_date is None:
+                    continue # 메뉴 선택으로 돌아감
+                
+                modify_scd_date(scd_id, scd_date)
+                print("수정이 완료되었습니다. 관리자 주 프롬프트로 돌아갑니다.")
+                # verify_integrity()
+                return # 완료 후 종료
+
+            # 4. 시간 수정
+            elif func == "2":
+                scd_time = input_modify_scd_time(scd_id)
+                if scd_time is None:
+                    continue # 메뉴 선택으로 돌아감
+                
+                modify_scd_time(scd_id, scd_time)
+                print("수정이 완료되었습니다. 관리자 주 프롬프트로 돌아갑니다.")
+                # verify_integrity()
+                return # 완료 후 종료
+            
+
+
+
+def input_scd_time(movie_id: str, scd_date: str) -> str | None:
+    """
+    상영 시작 시간 입력 및 검증
+    """
+    while True:
+        scd_time = input("영화 시작 시간을 입력해주세요 (HH:MM): ").strip()
+        
+        if scd_time == "0":
+            return None
+            
+        # 1. 문법 형식 검사
+        if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
+            print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            continue
+        if chk_overlap(movie_id, scd_date, scd_time):
+
+            print("상영 시간은 다른 상영 시간표와 중복될 수 없습니다. 다시 입력해주세요.") 
+            continue
+            
+        return scd_time
+
+def add_scd(movie_id: str, scd_date: str, scd_time: str) -> None:
+    """
+    상영 데이터 파일에 레코드 추가 (오름차순 정렬 유지)
+    """
+    # 상영 고유 번호 생성 (YYYYMMDDHHmm)
+    scd_id = scd_date.replace("-", "") + scd_time.replace(":", "")
+    
+    # 좌석 유무 벡터 (25개의 0)
+    zero_vector = "[" + ",".join(["0"] * 25) + "]"
+    
+    # 새 레코드 생성
+    new_record = f"{scd_id}/{movie_id}/{scd_date}/{scd_time}/{zero_vector}/T/{CURRENT_DATE_STR}"
+    
+    schedule_path = home_path() / SCHEDULE_FILE
+    
+    # 1. 기존 파일 내용 읽기
+    lines = []
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    lines.append(line.strip())
+
+    # 2. 새 레코드 리스트에 추가
+    lines.append(new_record)
+
+    # 3. 상영 고유 번호(첫 번째 필드) 기준으로 오름차순 정렬
+    lines.sort(key=lambda x: x.split('/')[0])
+
+    # 4. 파일 덮어쓰기 (정렬된 순서대로 저장)
+    with open(schedule_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(lines))
+
+        
+def chk_overlap(movie_id: str, scd_date: str, scd_time: str) -> bool:
+    """
+    [설계서 7. chk_overlap]
+    상영 시간표 추가(admin_menu4) 시 중복 검사
+    """
+    movie_path = home_path() / MOVIE_FILE
+    schedule_path = home_path() / SCHEDULE_FILE
+
+    # 1. 현재 영화의 러닝타임(running_time) 및 시간 계산
+    running_time = 0
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5 and parts[0] == movie_id and parts[3] == 'T':
+                    running_time = int(parts[2])
+                    break
+    
+    h, m = map(int, scd_time.split(':'))
+    newStart = h * 60 + m
+    newEnd = newStart + running_time
+
+    # (설계서에는 없으나 로직상 필요한 24시 체크, 설계서 7번 항목에는 명시되지 않았지만 
+    # admin_menu4의 input_scd_time 처리 과정에 언급됨. 여기서는 순수 중복 체크 로직만 수행)
+    
+    # 2. schedule-info.txt 필터링
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) < 7: continue
+                
+                ex_scd_id = parts[0]
+                ex_movie_id = parts[1]
+                ex_date = parts[2]
+                ex_time = parts[3]
+                ex_valid = parts[5]
+
+                # 조건: 날짜 일치 AND 유효함
+                if ex_date == scd_date and ex_valid == 'T':
+                    # A. old_movie_id
+                    old_movie_id = ex_movie_id
+                    
+                    # B. old_running_time
+                    old_running_time = 0
+                    if movie_path.exists():
+                        with open(movie_path, 'r', encoding='utf-8') as mf:
+                            for mline in mf:
+                                mparts = mline.strip().split('/')
+                                if len(mparts) >= 5 and mparts[0] == old_movie_id and mparts[3] == 'T':
+                                    old_running_time = int(mparts[2])
+                                    break
+                    
+                    # C. oldStart, oldEnd
+                    eh, em = map(int, ex_time.split(':'))
+                    oldStart = eh * 60 + em
+                    oldEnd = oldStart + old_running_time
+                    
+                    # D. 겹침 판별
+                    if newStart < oldEnd and newEnd > oldStart:
+                        return True
+
+    return False
+
+def admin_menu4():
+    """
+    8.5 상영 시간표 추가 메인 함수
+    """
+    while True:
+        # 1. 영화 선택
+        movie_id = input_movie_id()
+        if movie_id is None:
+            return # 관리자 메인으로
+            
+        # 2. 날짜 입력 (중첩 루프)
+        while True:
+            scd_date = input_scd_date(movie_id)
+            if scd_date is None:
+                break # 영화 선택으로 돌아감
+                
+            # 3. 시간 입력 (중첩 루프)
+            while True:
+                scd_time = input_scd_time(movie_id, scd_date)
+                if scd_time is None:
+                    break # 날짜 입력으로 돌아감
+                    
+                # 4. 추가 및 종료
+                add_scd(movie_id, scd_date, scd_time)
+                print("상영 시간표가 추가되었습니다. 관리자 주 프롬프트로 돌아갑니다.")
+                
+                # 무결성 검사 호출 (빈 함수라도 호출)
+                # verify_integrity() 
+                return
+# ---------------------------------------------------------------
+# 8.7 상영 시간표 삭제
+# ---------------------------------------------------------------
+
+def print_deletable_scd_list() -> set:
+    """
+    삭제 가능한(예매 없음, 미래, 유효함) 스케줄 목록을 출력하고 ID 집합 반환
+    """
+    schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE
+    
+    deletable_ids = set()
+    
+    if not schedule_path.exists():
+        return deletable_ids
+
+    # 영화 정보 로드
+    movie_info = {}
+    if movie_path.exists():
+        with open(movie_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('/')
+                if len(parts) >= 5 and parts[3] == 'T':
+                    movie_info[parts[0]] = {'title': parts[1], 'runtime': parts[2]}
+
+    print("상영 데이터 파일에 존재하는 삭제 가능한 상영 시간표 목록입니다. 삭제할 상영 고유 번호를 입력하세요.")
+    print("상영 고유 번호 | 영화 제목 | 러닝 타임(분) | 영화 날짜 | 영화 시작 시간")
+
+    schedules_to_print = []
+    with open(schedule_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split('/')
+            # 구조: scd_id/movie_id/date/time/vec/valid/ts
+            if len(parts) < 7: continue
+            
+            scd_id, mid, date_str, time_str, vec_str, valid = parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
+            
+            # 조건: 유효T, 날짜>=현재, 벡터가 모두 0(예매 없음)
+            try:
+                seats = ast.literal_eval(vec_str)
+                is_empty_seats = all(s == 0 for s in seats)
+            except:
+                is_empty_seats = False
+
+            # 내부 현재 날짜 '후'의 상영 시간표 (설계서 8.7 본문: 내부 현재 날짜 후)
+            # 보통 당일 삭제도 막는 것이 안전하므로 > 로 처리하거나, 
+            # 4.4 입력 날짜 규칙(>=)과 일관성을 위해 >= 로 처리할 수 있음.
+            # 여기서는 설계서 텍스트("내부 현재 날짜 후")를 따라 > 로 구현하되, 
+            # 필요시 >= 로 변경 가능. (8.6 수정에서는 >= CURRENT_DATE_STR 로 구현했음)
+            # 통일성을 위해 여기서도 >= CURRENT_DATE_STR 로 구현합니다.
+            if valid == 'T' and date_str >= CURRENT_DATE_STR and is_empty_seats:
+                m_data = movie_info.get(mid, {'title': '알수없음', 'runtime': '0'})
+                schedules_to_print.append({
+                    'id': scd_id,
+                    'title': m_data['title'],
+                    'runtime': m_data['runtime'],
+                    'date': date_str,
+                    'time': time_str
+                })
+                deletable_ids.add(scd_id)
+
+    # 정렬하여 출력 (상영 고유 번호 기준 오름차순)
+    schedules_to_print.sort(key=lambda x: x['id'])
+    for s in schedules_to_print:
+        print(f"{s['id']} | {s['title']} | {s['runtime']} | {s['date']} | {s['time']}")
+
+    print("0. 뒤로 가기")
+    return deletable_ids
+
+def input_delete_scd_id(deletable_ids: set) -> str | None:
+    """
+    삭제할 상영 고유 번호 입력 및 검증
+    """
+    while True:
+        scd_id = input("입력: ").strip()
+        
+        if scd_id == "0":
+            return None
+            
+        # 문법 형식 검사 (12자리 숫자)
+        if not re.fullmatch(r"\d{12}", scd_id):
+             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+             continue
+             
+        # 의미 규칙 검사 (삭제 가능 목록에 존재 여부)
+        if scd_id not in deletable_ids:
+            print("삭제 가능한 상영 고유 번호만 입력 가능합니다. 다시 입력해주세요.")
+            continue
+            
+        return scd_id
+
+def delete_scd(scd_id: str) -> None:
+    """
+    상영 레코드 삭제 (유효 여부를 T -> F로 수정 및 타임스탬프 갱신)
+    """
+    lines = []
+    schedule_path = home_path() / SCHEDULE_FILE
+    
+    if schedule_path.exists():
+        with open(schedule_path, 'r', encoding='utf-8') as f:
+            # 안전하게 모든 줄 읽기 (개행 제거)
+            for line in f:
+                if line.strip():
+                    lines.append(line.strip())
+    
+    new_lines = []
+    for line in lines:
+        parts = line.strip().split('/')
+        # 구조: id(0)/mid(1)/date(2)/time(3)/vec(4)/valid(5)/ts(6)
+        if len(parts) >= 7 and parts[0] == scd_id and parts[5] == 'T':
+            parts[5] = 'F' # 유효 여부 F
+            parts[6] = CURRENT_DATE_STR # 타임스탬프 갱신
+            new_lines.append("/".join(parts))
+        else:
+            new_lines.append(line)
+
+    # 파일 덮어쓰기 (개행 문자 추가하여 join)
+    with open(schedule_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(new_lines) + "\n")
+
+def admin_menu6():
+    """
+    8.7 상영 시간표 삭제 메인 함수
+    """
+    while True:
+        # 1. 삭제 가능한 목록 출력 (처리 과정 3.A)
+        deletable_ids = print_deletable_scd_list()
+        
+        # 2. 상영 고유 번호 입력 (처리 과정 4.A)
+        scd_id = input_delete_scd_id(deletable_ids)
+        
+        # 2.B "0" 입력 시 종료
+        if scd_id is None:
+            return
+
+        # 3. 상영 레코드 삭제 (처리 과정 5)
+        delete_scd(scd_id)
+        print("해당 상영 시간표가 삭제되었습니다. 관리자 주 프롬프트로 돌아갑니다.")
+        
+        # 4. 데이터 무결성 검사 (처리 과정 6.A)
+        # verify_integrity()
+        
+        # 5. 함수 종료
+        return
+
+# ---------------------------------------------------------------
 # 관리자 주 프롬프트(8.1) & 메뉴 디스패치
 # ---------------------------------------------------------------
 def show_admin_main_menu() -> None:
@@ -1492,9 +2446,9 @@ def dispatch_admin_menu(choice: str) -> None:
         "1": admin_menu1,
         "2": admin_menu2,
         "3": admin_menu3,
-        # "4": admin_menu4,
-        # "5": admin_menu5,
-        # "6": admin_menu6,
+        "4": admin_menu4,
+        "5": admin_menu5,
+        "6": admin_menu6,
     }
     func = mapping.get(choice)
     if func is None:

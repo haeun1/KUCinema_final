@@ -3090,43 +3090,41 @@ def chk_overlap_date(scd_id: str, running_time: int, scd_date: str) -> bool:
 
     return False # 겹치지 않음
 
-def chk_overlap_time(scd_id: str, running_time: int) -> bool:
+def chk_overlap_time(scd_id: str, running_time: int, scd_time: str) -> bool:
     """
-    [설계서 8. chk_overlap_time]
-    영화 시작 시간을 수정할 때 (로직상 파일의 시간을 읽어옴), 시간 충돌 검사
+    [설계서 8. chk_overlap_time] - 수정본
+    영화 시작 시간을 수정할 때, 변경할 시간(scd_time)을 기준으로 충돌 검사
+    
+    매개변수:
+        scd_id: 수정 대상 상영 고유 번호 (기존 ID)
+        running_time: 영화 러닝 타임
+        scd_time: 사용자가 입력한 새로운 시작 시간 (HH:MM)
     """
     schedule_path = home_path() / SCHEDULE_FILE
+    movie_path = home_path() / MOVIE_FILE 
 
-    # 1. scd_id에서 날짜 파싱 (YYYYMMDD -> YYYY-MM-DD)
-    # scd_id는 12자리: YYYY(0:4) MM(4:6) DD(6:8) HH(8:10) mm(10:12)
+    # 1. scd_id에서 날짜 파싱 (YYYYMMDD...) -> YYYY-MM-DD
+    # 수정 기능이므로 날짜는 scd_id에 있는 날짜(기존 날짜)를 유지한다고 가정
+    # (만약 날짜 수정 기능에서 이 함수를 쓴다면 로직이 달라져야 하나, 
+    #  현재 문맥상 '시간 수정' 단계이므로 scd_id의 날짜를 사용)
     yyyy = scd_id[0:4]
     mm = scd_id[4:6]
     dd = scd_id[6:8]
     scd_date = f"{yyyy}-{mm}-{dd}"
 
-    # 2. schedule-info.txt에서 scd_id 레코드의 '영화 시작 시간'을 scd_time에 저장
-    scd_time = ""
-    if schedule_path.exists():
-        with open(schedule_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                parts = line.strip().split('/')
-                if len(parts) >= 7 and parts[0] == scd_id and parts[5] == 'T':
-                    scd_time = parts[3]
-                    break
-    
-    if not scd_time: return False
-
-    # 3. 시간 계산 (newStart, newEnd)
+    # 2. 입력받은 scd_time으로 새로운 시작/종료 시간 계산
+    # (파일에서 읽지 않고, 인자로 받은 scd_time 사용)
     h, m = map(int, scd_time.split(':'))
     newStart = h * 60 + m
     newEnd = newStart + running_time
 
-    # 4. 24:00(1440분) 초과 검사
-    if newEnd > 1440: # 설계서: 1440 이상 (1440 포함) -> 24:00 이후
-        print("영화 종료 시간은 24:00 이후일 수 없습니다. 다시 입력해주세요.")
-        return True
+    # 3. 24:00(1440분) 초과 검사
+    # 24:00은 허용 안 함 (1440 이상이면 오류)
+    #if newEnd >= 1440: 
+    #    print("영화 종료 시간은 24:00 이후일 수 없습니다. 다시 입력해주세요.")
+    #    return True
 
-    # 5. schedule-info.txt 필터링 및 중복 검사
+    # 4. schedule-info.txt 필터링 및 중복 검사
     if schedule_path.exists():
         with open(schedule_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -3139,14 +3137,14 @@ def chk_overlap_time(scd_id: str, running_time: int) -> bool:
                 ex_time = parts[3]
                 ex_valid = parts[5]
 
-                # 조건: 날짜 일치 AND ID 불일치 AND 유효함
+                # 조건: 날짜 일치 AND 유효함(T)
+                # ★ 핵심: 수정 대상인 자기 자신(scd_id)은 비교에서 제외 ★
                 if ex_date == scd_date and ex_scd_id != scd_id and ex_valid == 'T':
-                    # A. old_movie_id
-                    old_movie_id = ex_movie_id
                     
-                    # B. old_running_time
+                    # A. 비교 대상의 러닝타임 가져오기 (old_movie_id)
+                    old_movie_id = ex_movie_id
                     old_running_time = 0
-                    movie_path = home_path() / MOVIE_FILE
+                    
                     if movie_path.exists():
                         with open(movie_path, 'r', encoding='utf-8') as mf:
                             for mline in mf:
@@ -3154,13 +3152,14 @@ def chk_overlap_time(scd_id: str, running_time: int) -> bool:
                                 if len(mparts) >= 5 and mparts[0] == old_movie_id and mparts[3] == 'T':
                                     old_running_time = int(mparts[2])
                                     break
-
-                    # C. oldStart, oldEnd
+                    
+                    # B. 비교 대상의 시작/종료 시간 계산
                     eh, em = map(int, ex_time.split(':'))
                     oldStart = eh * 60 + em
                     oldEnd = oldStart + old_running_time
                     
-                    # D. 겹침 판별
+                    # C. 겹침 판별
+                    # (Start1 < End2) and (End1 > Start2)
                     if newStart < oldEnd and newEnd > oldStart:
                         return True
 
@@ -3412,7 +3411,7 @@ def input_modify_scd_time(scd_id: str) -> str | None:
             for line in f:
                 parts = line.strip().split('/')
                 if parts[0] == mid:
-                    runtime = int(parts[2])
+                    running_time = int(parts[2])
                     break
 
     while True:
@@ -3424,9 +3423,19 @@ def input_modify_scd_time(scd_id: str) -> str | None:
         if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
             continue
+        # ====================================================================================
+        # [추가] 24:00 (1440분) 이상 검사
+        h, m = map(int, scd_time.split(':'))
+        newStart = h * 60 + m
+        newEnd = newStart + running_time
+        
+        if newEnd >= 1440: 
+             print("영화 종료 시간은 24:00 이후일 수 없습니다. 다시 입력해주세요.")
+             continue # 여기서 루프 재시작 -> 중복 검사로 안 넘어감
+        # ====================================================================================
 
-        # 중복 검사 (chk_overlap_time 사용 - 내부에서 24시 초과 검사도 수행됨)
-        if chk_overlap_time(scd_id, runtime):
+        # 중복 검사 (chk_overlap_time 사용 - 내부에서 24시 초과 검사 하려 했으나, 이를 수정)
+        if chk_overlap_time(scd_id, running_time, scd_time):
              print("상영 시간은 다른 상영 시간표와 중복될 수 없습니다. 다시 입력해주세요.")
              continue
              
@@ -3585,6 +3594,25 @@ def input_scd_time(movie_id: str, scd_date: str) -> str | None:
         if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
             continue
+        
+        running_time = 0
+        movie_path = home_path() / MOVIE_FILE
+        if movie_path.exists():
+            with open(movie_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('/')
+                    if len(parts) >= 5 and parts[0] == movie_id and parts[3] == 'T':
+                        running_time = int(parts[2])
+                        break
+
+        # 2. 24:00 이후 검사 로직 추가 (8.5.3 의미 규칙)
+        h, m = map(int, scd_time.split(':'))
+        newStart = h * 60 + m
+        newEnd = newStart + running_time
+        
+        if newEnd >= 1440: # 24:00 (1440분) 이후
+             print("영화 종료 시간은 24:00 이후일 수 없습니다. 다시 입력해주세요.")
+             continue
         if chk_overlap(movie_id, scd_date, scd_time):
 
             print("상영 시간은 다른 상영 시간표와 중복될 수 없습니다. 다시 입력해주세요.") 

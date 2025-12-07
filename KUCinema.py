@@ -1790,7 +1790,7 @@ def select_movie(selected_date: str) -> dict | None:
                 parts = line.strip().split('/')
                 # format: mov_id/title/runtime/valid/ts
                 if len(parts) == 5 and parts[3] == 'T':
-                    movie_map[parts[0]] = parts[1]
+                    movie_map[parts[0]] = [parts[1], parts[2]]
 
     movies: list[dict] = []
     for line in scd_lines:
@@ -1804,10 +1804,16 @@ def select_movie(selected_date: str) -> dict | None:
         
         mov_id = parts[1]
         if mov_id in movie_map:
-            title = movie_map[mov_id]
+            title = movie_map[mov_id][0]
             scd_id = parts[0]
             date_str = parts[2]
-            time_str = parts[3]
+            startTime = parts[3]
+            runtime = int(movie_map[mov_id][1])
+            end_hour = (int(startTime[0:2]) + (int(startTime[3:5]) + runtime) // 60) % 24
+            end_minute = (int(startTime[3:5]) + runtime) % 60
+            endTime = f"{end_hour:02d}:{end_minute:02d}"
+            time_str = f"{startTime}-{endTime}"
+            
             seats = parts[4]
             if date_str == selected_date:
                 movies.append({
@@ -1999,7 +2005,7 @@ def get_movie_details() -> dict[str, dict]:
                 parts = line.strip().split('/')
                 # format: mov_id/title/runtime/valid/ts
                 if len(parts) == 5 and parts[3] == 'T':
-                    movie_map[parts[0]] = parts[1]
+                    movie_map[parts[0]] = [parts[1], parts[2]]
 
     lines = schedule_path.read_text(encoding="utf-8").splitlines()
     details: dict[str, dict] = {}
@@ -2012,9 +2018,16 @@ def get_movie_details() -> dict[str, dict]:
         if len(parts) == 7:
             schedule_id = parts[0].strip()
             movie_id = parts[1].strip()
-            title = movie_map[movie_id]
+            title = movie_map[movie_id][0]
             date_str = parts[2].strip()
-            time_str = parts[3].strip()
+            
+            startTime = parts[3]
+            runtime = int(movie_map[movie_id][1])
+            end_hour = (int(startTime[0:2]) + (int(startTime[3:5]) + runtime) // 60) % 24
+            end_minute = (int(startTime[3:5]) + runtime) % 60
+            endTime = f"{end_hour:02d}:{end_minute:02d}"
+            time_str = f"{startTime}-{endTime}"
+            
             details[schedule_id] = {"title": title, "date": date_str, "time": time_str}
     return details
 
@@ -2124,7 +2137,7 @@ def select_cancelation(student_id: str) -> dict | None:
                 parts = line.strip().split('/')
                 # format: mov_id/title/runtime/valid/ts
                 if len(parts) == 5 and parts[3] == 'T':
-                    movie_map[parts[0]] = parts[1]
+                    movie_map[parts[0]] = [parts[1], parts[2]]
 
     bookings: list[dict] = []
     for line in booking_lines:
@@ -2151,13 +2164,18 @@ def select_cancelation(student_id: str) -> dict | None:
                     if pm is None:
                         error(f"parse_movie_record 실패: {scd_line}")
                         continue
-                    
+                    startTime = pm["time"]
+                    runtime = int(movie_map[pm["movie_id"]][1])
+                    end_hour = (int(startTime[0:2]) + (int(startTime[3:5]) + runtime) // 60) % 24
+                    end_minute = (int(startTime[3:5]) + runtime) % 60
+                    endTime = f"{end_hour:02d}:{end_minute:02d}"
+                    time_str = f"{startTime}-{endTime}"     
                     bookings.append({
                         "scd_id": scd_id.strip(),
                         "seats": ast.literal_eval(seat_vec.strip()),
                         "title": movie_map[pm["movie_id"]],
                         "date": pm["date"],
-                        "time": pm["time"],
+                        "time": time_str,
                     })
                     break
     if not bookings:
@@ -2280,7 +2298,7 @@ def menu4() -> None:
                 parts = line.strip().split('/')
                 # format: mov_id/title/runtime/valid/ts
                 if len(parts) == 5 and parts[3] == 'T':
-                    movie_map[parts[0]] = parts[1]
+                    movie_map[parts[0]] = [parts[1], parts[2]]
     try:
         lines = schedule_path.read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:
@@ -2295,10 +2313,16 @@ def menu4() -> None:
             movie_date = parts[2].strip()
             if movie_date < CURRENT_DATE_STR:
                 continue
+            startTime = parts[3]
+            runtime = int(movie_map[parts[1].strip()][1])
+            end_hour = (int(startTime[0:2]) + (int(startTime[3:5]) + runtime) // 60) % 24
+            end_minute = (int(startTime[3:5]) + runtime) % 60
+            endTime = f"{end_hour:02d}:{end_minute:02d}"
+            time_str = f"{startTime}-{endTime}"     
             available_movies.append({
                 "date": movie_date,
-                "time": parts[3].strip(),
-                "title": movie_map[parts[1].strip()],
+                "time": time_str.strip(),
+                "title": movie_map[parts[1].strip()][0],
             })
     print(f"상영시간표 조회를 선택하셨습니다. 현재 조회 가능한 모든 상영 시간표를 출력합니다.")
     if not available_movies:

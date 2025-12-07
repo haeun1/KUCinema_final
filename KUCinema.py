@@ -1595,9 +1595,9 @@ def prompt_input_date() -> str:
     """6.1 날짜 입력 프롬프트"""
     global LATEST_DATE_STR, LOGGED_IN_SID
     LATEST_DATE_STR = init_latest_date()
-    print("최종 작업 날짜:", LATEST_DATE_STR)
+    #print("최종 작업 날짜:", LATEST_DATE_STR)
     while True:
-        s = input("현재 날짜를 입력하세요 (YYYY-MM-DD) : ")
+        s = input(f"현재 날짜를 입력하세요 (YYYY-MM-DD) (최종 작업 날짜: {LATEST_DATE_STR}): ")
         # 문법/의미 체크
         if not RE_DATE.fullmatch(s):
             info("날짜 형식이 맞지 않습니다. 다시 입력해주세요")

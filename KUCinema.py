@@ -3974,7 +3974,7 @@ def main() -> None:
     # 1) 6.1 — 날짜 입력
     CURRENT_DATE_STR = prompt_input_date()  # 내부 현재 날짜 확정
 
-    print(LATEST_DATE_STR)
+    #print(LATEST_DATE_STR)
     # 2) 6.2 — 로그인 플로우
     while True:
         sid = prompt_student_id()  # 6.2.1

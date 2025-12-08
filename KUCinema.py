@@ -1368,10 +1368,9 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
         modified_lines = []
         modified = False  # 수정 여부 추적
         
-        for line in lines:
+        for i, line in enumerate(lines):
             line = line.rstrip('\n')
             parts = line.split('/')
-            
             if len(parts) == 5:
                 student_id, schedule_id, seats_vector, record_valid, timestamp = parts
                 
@@ -1381,12 +1380,18 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
                 # 모든 좌석이 0이고 레코드가 유효한 경우
                 if all(seat == 0 for seat in seats) and record_valid == 'T':
                     # 유효 여부를 F로 변경, 타임스탬프를 현재 날짜로 변경
-                    modified_line = f"{student_id}/{schedule_id}/{seats_vector}/F/{CURRENT_DATE_STR}\n"
+                    modified_line = f"{student_id}/{schedule_id}/{seats_vector}/F/{CURRENT_DATE_STR}"
+                    if i < len(lines) - 1:
+                        modified_line += '\n'
                     modified = True  # 수정 발생
                 else:
-                    modified_line = line + '\n'
+                    modified_line = line
+                    if i < len(lines) - 1:
+                        modified_line += '\n'
             else:
-                modified_line = line + '\n'
+                modified_line = line
+                if i < len(lines) - 1:
+                    modified_line += '\n'
             
             modified_lines.append(modified_line)
         
@@ -1893,6 +1898,7 @@ def finalize_booking(selected_movie: dict, chosen_seats: list[str], student_id: 
             for i in range(25):
                 seats[i] = 1 if (seats[i] == 1 or new_booking_vector[i] == 1) else 0
             parts[-3] = "[" + ",".join(map(str, seats)) + "]"
+            parts[-1] = CURRENT_DATE_STR
             updated_line = "/".join(parts)
 
             updated_lines.append(updated_line)
@@ -2082,11 +2088,12 @@ def menu2() -> None:
     print(f"\n{LOGGED_IN_SID} 님의 예매 내역입니다.")
     if not user_bookings:
         print(f"{LOGGED_IN_SID} 님의 예매 내역이 존재하지 않습니다. 주 프롬프트로 돌아갑니다.")
+        return
     else:
         user_bookings.sort(key=lambda b: (b['date'], b['time']))
         for i, booking in enumerate(user_bookings, 1):
-            seat_list_str = ", ".join(booking["seats"])
-            print(f"{i}) {booking['date']} {booking['time']} | {booking['title']} | 좌석: {seat_list_str}")
+            seat_list_str = " ".join(booking["seats"])
+            print(f"{i}) {booking['date']} {booking['time']} | {booking['title']} | {seat_list_str}")
     print("주 프롬프트로 돌아갑니다.")
 
 
@@ -2173,7 +2180,7 @@ def select_cancelation(student_id: str) -> dict | None:
                     bookings.append({
                         "scd_id": scd_id.strip(),
                         "seats": ast.literal_eval(seat_vec.strip()),
-                        "title": movie_map[pm["movie_id"]],
+                        "title": movie_map[pm["movie_id"]][0],
                         "date": pm["date"],
                         "time": time_str,
                     })

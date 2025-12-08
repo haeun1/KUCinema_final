@@ -1379,8 +1379,9 @@ def remove_zero_seat_bookings(booking_path: Path) -> None:
                 
                 # 모든 좌석이 0이고 레코드가 유효한 경우
                 if all(seat == 0 for seat in seats) and record_valid == 'T':
-                    # 유효 여부를 F로 변경, 타임스탬프를 현재 날짜로 변경
-                    modified_line = f"{student_id}/{schedule_id}/{seats_vector}/F/{CURRENT_DATE_STR}"
+                    # 유효 여부를 F로 변경, 타임스탬프를 현재 날짜로 변경 (CURRENT_DATE_STR 없으면 기본값)
+                    fallback_date = CURRENT_DATE_STR or "1582-10-15"
+                    modified_line = f"{student_id}/{schedule_id}/{seats_vector}/F/{fallback_date}"
                     if i < len(lines) - 1:
                         modified_line += '\n'
                     modified = True  # 수정 발생

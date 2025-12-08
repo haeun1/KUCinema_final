@@ -2223,7 +2223,7 @@ def confirm_cancelation(selected_booking: dict) -> None:
         return
     booked = [seat_names[idx] for idx, v in enumerate(seats) if v == 1]
     seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
-    n = input(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']} | {seat_str}의 예매를 취소하겠습니까? (Y/N) : ")
+    n = input(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']}의 예매를 취소하겠습니까? (Y/N) : ")
     
     if n == 'Y':
         booking_lines = booking_path.read_text(encoding="utf-8").splitlines()

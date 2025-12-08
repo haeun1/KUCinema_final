@@ -2345,7 +2345,6 @@ def menu0() -> None:
     info("프로그램을 종료합니다.")
     sys.exit(0)
 
-
 # ---------------------------------------------------------------
 # 주 프롬프트(6.3) & 메뉴 디스패치
 # ---------------------------------------------------------------
@@ -2399,6 +2398,9 @@ def main_prompt_loop() -> None:
         # 1~4: 해당 메뉴 모듈로 디스패치
         dispatch_menu(s)
 
+def admin_menu0() -> None:
+    info("프로그램을 종료합니다.")
+    sys.exit(0)
 # ---------------------------------------------------------------
 # 영화 데이터 추가(8.2)
 # ---------------------------------------------------------------
@@ -2591,7 +2593,7 @@ def input_modify_movie_id(modifiable_movie: set) -> str | None:
     """
     while True:
         # 1. 입력
-        mid = input("수정할 영화의 영화 고유 번호를 입력해주세요 : ")
+        mid = input()
 
         # 4. "0"인 경우 반환
         if mid == "0":
@@ -2600,11 +2602,15 @@ def input_modify_movie_id(modifiable_movie: set) -> str | None:
         # 2. 형식 검사 (길이 4, 숫자)
         if len(mid) != 4 or not mid.isdigit():
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            print()
+            _ = print_modifiable_movie_list()
             continue
 
         # 3. 수정 가능한 목록에 있는지 검사
         if mid not in modifiable_movie:
             print("수정 가능한 영화 고유번호만 입력 가능합니다. 다시 입력해주세요.")
+            print()
+            _ = print_modifiable_movie_list()
             continue
 
         # 5. 반환
@@ -2658,7 +2664,7 @@ def input_modify_movie_title() -> str | None:
     수정할 영화 제목 입력
     """
     # 1. 기존 제목 로딩
-    existing_titles = set()
+    existing_titles = tuple()
     if os.path.exists(MOVIE_FILE):
         with open(MOVIE_FILE, 'r', encoding='utf-8') as f:
             for line in f:
@@ -2869,7 +2875,7 @@ def input_delete_movie_id(movie_set: set) -> str | None:
     """
     while True:
         # 1. 입력
-        mid = input("삭제할 영화의 영화 고유 번호를 입력해주세요 : ")
+        mid = input()
 
         # 4. "0"인 경우 반환
         if mid == "0":
@@ -2975,7 +2981,7 @@ def input_movie_id() -> str | None:
     """
     while True:
         valid_ids = show_available_movie()
-        movie_id = input("입력: ").strip()
+        movie_id = input("").strip()
         
         if movie_id == "0":
             return None
@@ -3263,7 +3269,7 @@ def input_modify_scd_id(modifiable_ids: set) -> str | None:
     수정할 상영 고유 번호 입력 및 검증
     """
     while True:
-        scd_id = input("입력: ").strip()
+        scd_id = input("").strip()
         
         if scd_id == "0":
             return None
@@ -3319,7 +3325,7 @@ def input_modify_scd_func(scd_id: str) -> str | None:
     print("0. 뒤로 가기")
 
     while True:
-        func = input("입력: ").strip()
+        func = input("").strip()
         
         if func == "0":
             return None
@@ -3852,7 +3858,7 @@ def input_delete_scd_id(deletable_ids: set) -> str | None:
     삭제할 상영 고유 번호 입력 및 검증
     """
     while True:
-        scd_id = input("입력: ").strip()
+        scd_id = input("").strip()
         
         if scd_id == "0":
             return None
@@ -3940,7 +3946,7 @@ def show_admin_main_menu() -> None:
 def dispatch_admin_menu(choice: str) -> None:
     """동일 파일 내의 admin_menu1~admin_menu6 함수를 직접 호출."""
     mapping = {
-        "0": menu0,
+        "0": admin_menu0,
         "1": admin_menu1,
         "2": admin_menu2,
         "3": admin_menu3,
@@ -3967,7 +3973,7 @@ def admin_main_prompt_loop() -> None:
 
         # 문법 형식: 숫자만의 길이 1
         if not re.fullmatch(r"\d", s or ""):
-            info("올바르지 않은 입력입니다. 원하는 동작에 해당하는 번호만 입력하세요.")
+            info("올바르지 않은 입력입니다. 다시 입력해주세요.")
             continue
 
         # 의미 규칙: {1,2,3,4,5,6,0}

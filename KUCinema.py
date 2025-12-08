@@ -2640,7 +2640,7 @@ def input_modify_movie_func(movie_id: str) -> str | None:
 
     while True:
         # 5. 입력
-        func = input("번호를 입력하세요: ")
+        func = input()
 
         # 8. "0" 반환
         if func == "0":
@@ -2664,13 +2664,14 @@ def input_modify_movie_title() -> str | None:
     수정할 영화 제목 입력
     """
     # 1. 기존 제목 로딩
-    existing_titles = tuple()
+    existing_titles = set()
     if os.path.exists(MOVIE_FILE):
         with open(MOVIE_FILE, 'r', encoding='utf-8') as f:
             for line in f:
                 parts = line.strip().split('/')
                 if len(parts) >= 4 and parts[3] == 'T':
                     existing_titles.add(parts[1])
+    existing_titles_tuple = tuple(existing_titles)
 
     while True:
         # 2. 입력
@@ -2686,7 +2687,7 @@ def input_modify_movie_title() -> str | None:
             continue
 
         # 4. 중복 검사
-        if title in existing_titles:
+        if title in existing_titles_tuple:
             print("이미 존재하는 영화 제목입니다. 다시 입력해주세요.")
             continue
 

@@ -4022,7 +4022,10 @@ def main() -> None:
                 continue
             # 정상 로그인
             LOGGED_IN_SID = sid
-            info(f"{LOGGED_IN_SID} 님 환영합니다.")
+            if LOGGED_IN_SID == "admin":
+                info("관리자 계정으로 로그인했습니다.")
+            else:
+                info(f"{LOGGED_IN_SID} 님 환영합니다.")
             break
         else:
             # 신규 회원 → 6.2.4

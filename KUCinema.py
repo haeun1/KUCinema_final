@@ -1248,7 +1248,7 @@ def check_duplicate_seats(bookings: List[Booking]) -> bool:
         for seat_count in accumulated_seats:
             if seat_count >= 2:
                 result = False
-                print(result)
+                #print(result)
                 return result
 
     # 여기까지 왔으면 중복 없음

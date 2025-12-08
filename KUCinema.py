@@ -674,7 +674,7 @@ def parse_schedule_data(schedule_path: Path) -> List[Schedule]:
     return schedules
 
 
-def validate_schedule_id_duplication(schedule_path: Path) -> Tuple[bool, List[str]]:
+def validate_schedule_id_duplication(schedule_path: Path) -> bool:
     """
     상영 데이터 파일 내에서 중복된 상영 고유 번호가 존재하는지 검사한다.
 
@@ -682,9 +682,8 @@ def validate_schedule_id_duplication(schedule_path: Path) -> Tuple[bool, List[st
         schedule_path: Path - 상영 데이터 파일 경로
 
     반환값:
-        (is_ok, error_lines)
+        (is_ok)
         - is_ok: 규칙 검증 오류(중복 상영 ID)가 하나도 없으면 True, 하나 이상 있으면 False
-        - error_lines: 중복된 상영 고유 번호를 가진 '원본 문자열' 리스트
     """
 
     lines = schedule_path.read_text(encoding="utf-8").splitlines()
@@ -714,14 +713,9 @@ def validate_schedule_id_duplication(schedule_path: Path) -> Tuple[bool, List[st
     duplicated_ids = {sid for sid, cnt in id_counts.items() if cnt >= 2}
 
     if not duplicated_ids:
-        return True, []
+        return True
 
-    # 중복 상영 ID를 가진 레코드(원본 문자열)만 오류 리스트에 담는다.
-    error_lines: List[str] = [
-        original for sid, original in records if sid in duplicated_ids
-    ]
-
-    return False, error_lines
+    return False
 
 def check_sorted_schedule_id(schedules: List[Schedule]) -> bool:
     """
@@ -1445,11 +1439,9 @@ def verify_integrity():
     
     schedules = parse_schedule_data(Path(SCHEDULE_FILE))
 
-    is_ok, error_lines = validate_schedule_id_duplication(Path(SCHEDULE_FILE))
+    is_ok = validate_schedule_id_duplication(Path(SCHEDULE_FILE))
     if not is_ok:
         error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
-        # for line in error_lines:
-        #     print(line)
         sys.exit(1)
 
     is_ok = check_sorted_schedule_id(schedules) 

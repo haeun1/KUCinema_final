@@ -858,7 +858,7 @@ def check_schedule_time_conflict(schedules: List[Schedule], movies: List[Movie])
         for i in range(len(intervals) - 1):
             _, end_curr = intervals[i]
             start_next, _ = intervals[i + 1]
-            if end_curr > start_next:
+            if end_curr >= start_next:
                 return False
 
     return True
@@ -897,7 +897,7 @@ def check_schedule_end_time_before_midnight(schedules: List[Schedule], movies: L
         end_min = start_min + rt
 
         # 24:00(= 1440분)을 초과하면 규칙 위반
-        if end_min > 1440:
+        if end_min >= 1440:
             return False
 
     return True
@@ -1448,8 +1448,8 @@ def verify_integrity():
     is_ok, error_lines = validate_schedule_id_duplication(Path(SCHEDULE_FILE))
     if not is_ok:
         error(f"상영 데이터 파일\n{SCHEDULE_FILE}가 올바르지 않습니다!\n의미 규칙이 위반되었습니다. 프로그램을 종료합니다.")
-        for line in error_lines:
-            print(line)
+        # for line in error_lines:
+        #     print(line)
         sys.exit(1)
 
     is_ok = check_sorted_schedule_id(schedules) 

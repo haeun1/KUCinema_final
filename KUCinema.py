@@ -2989,6 +2989,9 @@ def show_available_movie() -> list[str]:
     print("영화 데이터 파일에 존재하는 영화 목록입니다. 상영 시간표에 추가할 영화 고유 번호를 입력하세요.")
     print("영화 고유 번호 | 영화 제목 | 러닝 타임(분)")
     
+    # [변경 1] 정렬을 위해 데이터를 잠시 저장할 리스트 생성
+    temp_movies = [] 
+
     if movie_path.exists():
         with open(movie_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -2996,9 +2999,21 @@ def show_available_movie() -> list[str]:
                 if not line: continue
                 parts = line.split('/')
                 # 형식: id/title/runtime/valid/timestamp
+                
+                # [변경 2] 'T'인 레코드를 즉시 출력하지 않고 temp_movies 리스트에 저장 (튜플 형태)
                 if len(parts) >= 5 and parts[3] == 'T':
-                    print(f"{parts[0]} | {parts[1]} | {parts[2]}")
-                    valid_ids.append(parts[0])
+                    # (영화ID, 제목, 러닝타임) 묶어서 저장
+                    temp_movies.append((parts[0], parts[1], parts[2]))
+    
+    # [변경 3] 수집된 영화 목록을 영화 ID(첫 번째 요소) 기준으로 오름차순 정렬
+    temp_movies.sort(key=lambda x: x[0])
+
+    # [변경 4] 정렬된 목록을 순회하며 출력하고 반환할 ID 리스트 생성
+    valid_ids = []
+    for m in temp_movies:
+        # m[0]: ID, m[1]: 제목, m[2]: 러닝타임
+        print(f"{m[0]} | {m[1]} | {m[2]}")
+        valid_ids.append(m[0])
     
     print("0. 뒤로 가기")
     return valid_ids
@@ -3036,7 +3051,7 @@ def input_scd_date(movie_id: str) -> str | None:
         with open(movie_path, 'r', encoding='utf-8') as f:
             for line in f:
                 parts = line.strip().split('/')
-                if len(parts) >= 5 and parts[0] == movie_id:
+                if len(parts) >= 5 and parts[0] == movie_id and parts[3] == 'T':
                     movie_title = parts[1]
                     movie_runtime = parts[2]
                     break

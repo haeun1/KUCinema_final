@@ -3066,9 +3066,10 @@ def input_scd_date(movie_id: str) -> str | None:
                     parts = line.strip().split('/')
                     if len(parts) >= 7 and parts[2] == scd_date and parts[5] == 'T':
                         cnt += 1
-        
-        if cnt >= 10:
+
+        if cnt >= 9:
             print("일일 영화 상영 수를 초과했습니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {movie_title} | {movie_runtime}>을 선택하셨습니다.")
             continue
             
         return scd_date
@@ -3430,7 +3431,7 @@ def input_modify_scd_date(scd_id: str) -> str | None:
                          if parts[0] != scd_id:
                             cnt += 1
         
-        if cnt >= 10:
+        if cnt >= 9:
              print("일일 영화 상영 수를 초과했습니다. 다시 입력해주세요.")
              continue
 

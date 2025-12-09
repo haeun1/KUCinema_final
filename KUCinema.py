@@ -2204,10 +2204,24 @@ def select_cancelation(student_id: str) -> dict | None:
         s = input()
         if not re.fullmatch(r"\d", s):
             print("올바르지 않은 입력입니다. 취소할 내역의 번호만 입력하세요.")
+            info(f"{student_id}님의 예매 내역입니다.")
+            seat_names = [f"{row}{col}" for row in "ABCDE" for col in range(1, 6)]
+            for i, d in enumerate(bookings, start=1):
+                booked = [seat_names[idx] for idx, v in enumerate(d['seats']) if v == 1]
+                seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
+                print(f"{i}) {d['date']} {d['time']} | {d['title']} | {seat_str}")
+            print("0) 뒤로 가기")
             continue
         num = int(s)
         if not (0 <= num <= n):
             print("범위 밖의 입력입니다. 다시 입력해주세요.")
+            info(f"{student_id}님의 예매 내역입니다.")
+            seat_names = [f"{row}{col}" for row in "ABCDE" for col in range(1, 6)]
+            for i, d in enumerate(bookings, start=1):
+                booked = [seat_names[idx] for idx, v in enumerate(d['seats']) if v == 1]
+                seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
+                print(f"{i}) {d['date']} {d['time']} | {d['title']} | {seat_str}")            
+            print("0) 뒤로 가기")
             continue
         if num == 0:
             return None
@@ -2225,9 +2239,8 @@ def confirm_cancelation(selected_booking: dict) -> None:
         return
     booked = [seat_names[idx] for idx, v in enumerate(seats) if v == 1]
     seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
-    print(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']}의 예매를 취소하겠습니까? (Y/N)")
-    n = input()
-    
+    n = input(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']}의 예매를 취소하겠습니까? (Y/N)")
+
     if n == 'Y':
         booking_lines = booking_path.read_text(encoding="utf-8").splitlines()
         new_booking_lines: list[str] = []
@@ -2687,7 +2700,7 @@ def input_modify_movie_title() -> str | None:
 
     while True:
         # 2. 입력
-        title = input("수정할 영화 제목을 입력하세요 : ")
+        title = input("수정할 영화 제목을 입력해주세요 : ")
 
         # 5. "0" 반환
         if title == "0":
@@ -2700,7 +2713,7 @@ def input_modify_movie_title() -> str | None:
 
         # 4. 중복 검사
         if title in existing_titles_tuple:
-            print("이미 존재하는 영화 제목입니다. 다시 입력해주세요.")
+            print("이미 존재하는 영화 제목입니다. 다른 제목을 입력해주세요.")
             continue
 
         # 6. 반환

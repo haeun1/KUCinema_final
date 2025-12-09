@@ -3292,12 +3292,14 @@ def input_modify_scd_id(modifiable_ids: set) -> str | None:
             
         # 문법 형식 검사 (12자리 숫자)
         if not re.fullmatch(r"\d{12}", scd_id):
-             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
-             continue
+            print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            modifiable_ids = print_modifiable_scd_list()
+            continue
              
         # 의미 규칙 검사 (목록에 존재 여부)
         if scd_id not in modifiable_ids:
             print("수정 가능한 상영 고유 번호만 입력 가능합니다. 다시 입력해주세요.")
+            modifiable_ids = print_modifiable_scd_list()
             continue
             
         return scd_id

@@ -3174,7 +3174,7 @@ def chk_overlap_date(scd_id: str, running_time: int, scd_date: str) -> bool:
                     oldEnd = oldStart + old_running_time
                     
                     # D. 겹침 판별
-                    if newStart < oldEnd and newEnd > oldStart:
+                    if newStart <= oldEnd and newEnd >= oldStart:
                         return True # 겹침
 
     return False # 겹치지 않음
@@ -3249,7 +3249,7 @@ def chk_overlap_time(scd_id: str, running_time: int, scd_time: str) -> bool:
                     
                     # C. 겹침 판별
                     # (Start1 < End2) and (End1 > Start2)
-                    if newStart < oldEnd and newEnd > oldStart:
+                    if newStart <= oldEnd and newEnd >= oldStart:
                         return True
 
     return False
@@ -3372,7 +3372,7 @@ def input_modify_scd_func(scd_id: str) -> str | None:
                     break
     
     if target_scd:
-        print(f"<{target_scd['id']} | {target_scd['title']} | {target_scd['runtime']} | {target_scd['date']} | {target_scd['time']}>을 선택하셨습니다. 수정할 번호를 선택해주세요.")
+        print(f"<{target_scd['id']} | {target_scd['title']} | {target_scd['runtime']} | {target_scd['date']} | {target_scd['time']}>을 선택하셨습니다. 원하는 동작에 해당하는 번호를 입력하세요.")
 
     print("1. 영화 날짜 수정")
     print("2. 영화 시작 시간 수정")
@@ -3813,7 +3813,7 @@ def chk_overlap(movie_id: str, scd_date: str, scd_time: str) -> bool:
                     oldEnd = oldStart + old_running_time
                     
                     # D. 겹침 판별
-                    if newStart < oldEnd and newEnd > oldStart:
+                    if newStart <= oldEnd and newEnd >= oldStart:
                         return True
 
     return False

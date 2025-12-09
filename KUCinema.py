@@ -3475,8 +3475,13 @@ def input_modify_scd_time(scd_id: str) -> str | None:
         if scd_time == "0":
             return None
             
-        if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
+        if not re.fullmatch(r"\d{2}:\d{2}", scd_time):
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            continue
+        # 2. [추가된 로직] 의미 규칙 검사 (범위 확인: 00:00 ~ 23:59)
+        h, m = map(int, scd_time.split(':'))
+        if h > 23 or m > 59:
+            print("범위 밖의 입력입니다. 다시 입력해주세요.")
             continue
         # ====================================================================================
         # [추가] 24:00 (1440분) 이상 검사

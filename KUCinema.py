@@ -1839,10 +1839,14 @@ def select_movie(selected_date: str) -> dict | None:
         s = input("원하는 영화의 번호를 입력해주세요 : ").strip()
         if not re.fullmatch(r"\d", s or "") or re.search(r"[A-Za-z]", s):
             print("올바르지 않은 입력입니다. 원하는 영화의 번호만 입력해주세요.")
+            for i, m in enumerate(movies, start=1):
+                print(f"{i}) {m['date']} {m['time']} | {m['title']}")
             continue
         num = int(s)
         if not (0 <= num <= n):
-            print("해당 번호의 영화가 존재하지 않습니다. 다시 입력해주세요.")
+            print("범위 밖의 입력입니다. 다시 입력해주세요.")
+            for i, m in enumerate(movies, start=1):
+                print(f"{i}) {m['date']} {m['time']} | {m['title']}")
             continue
         if num == 0:
             return None
@@ -2192,7 +2196,8 @@ def select_cancelation(student_id: str) -> dict | None:
         print(f"{i}) {d['date']} {d['time']} | {d['title']} | {seat_str}")
     print("0) 뒤로 가기")
     while True:
-        s = input("예매를 취소할 내역을 선택해주세요. (번호로 입력) : ").strip()
+        print("예매를 취소할 내역을 선택해주세요. (번호로 입력)")
+        s = input()
         if not re.fullmatch(r"\d", s):
             print("올바르지 않은 입력입니다. 취소할 내역의 번호만 입력하세요.")
             continue
@@ -2216,7 +2221,8 @@ def confirm_cancelation(selected_booking: dict) -> None:
         return
     booked = [seat_names[idx] for idx, v in enumerate(seats) if v == 1]
     seat_str = " ".join(booked) if booked else "(예매된 좌석 없음)"
-    n = input(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']}의 예매를 취소하겠습니까? (Y/N) : ")
+    print(f"{selected_booking['date']} {selected_booking['time']} | {selected_booking['title']}의 예매를 취소하겠습니까? (Y/N)")
+    n = input()
     
     if n == 'Y':
         booking_lines = booking_path.read_text(encoding="utf-8").splitlines()
@@ -2484,7 +2490,8 @@ def add_movie(movie_title: str, running_time: int):
                 if not line: continue
                 parts = line.split('/')
                 if parts[0].isdigit():
-                    current_ids.add(int(parts[0]))
+                    if parts[3] == 'T':
+                        current_ids.add(int(parts[0]))
     
     movie_id = 1
     while movie_id in current_ids:
@@ -2626,7 +2633,7 @@ def input_modify_movie_func(movie_id: str) -> str | None:
                 break
     
     # 1 ~ 4. 메뉴 출력
-    print(f"<{movie_id} | {current_title} | {current_time}>을 선택하셨습니다. 원하는 동작에 해당하는 번호를 입력해주세요.")
+    print(f"<{movie_id} | {current_title} | {current_time}>을 선택하셨습니다. 원하는 동작에 해당하는 번호를 입력하세요.")
     print("1. 영화 제목 수정")
     print("2. 러닝 타임 수정")
     print("0. 뒤로 가기")
@@ -2642,11 +2649,19 @@ def input_modify_movie_func(movie_id: str) -> str | None:
         # 6. 한 자리 정수 검사
         if len(func) != 1 or not func.isdigit():
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {current_title} | {current_time}>을 선택하셨습니다. 원하는 동작에 해당하는 번호를 입력하세요.")
+            print("1. 영화 제목 수정")
+            print("2. 러닝 타임 수정")
+            print("0. 뒤로 가기")
             continue
 
         # 7. 범위 검사 (1~2) -> 0은 위에서 처리했으므로 1, 2만 확인
         if func not in ["1", "2"]:
             print("범위 밖의 입력입니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {current_title} | {current_time}>을 선택하셨습니다. 원하는 동작에 해당하는 번호를 입력하세요.")
+            print("1. 영화 제목 수정")
+            print("2. 러닝 타임 수정")
+            print("0. 뒤로 가기")
             continue
 
         # 9. 반환
@@ -2878,11 +2893,13 @@ def input_delete_movie_id(movie_set: set) -> str | None:
         # 2. 형식 검사 (길이 4, 숫자)
         if len(mid) != 4 or not mid.isdigit():
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            _ = print_deletable_movie_list()
             continue
 
         # 3. 삭제 가능한 목록에 있는지 검사
         if mid not in movie_set:
             print("삭제 가능한 영화 고유 번호만 입력 가능합니다. 다시 입력해주세요.")
+            _ = print_deletable_movie_list()
             continue
 
         # 5. 반환
@@ -3018,23 +3035,23 @@ def input_scd_date(movie_id: str) -> str | None:
         # 1. 문법 형식 검사
         if not RE_DATE.fullmatch(scd_date):
             print("날짜 형식이 맞지 않습니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {movie_title} | {movie_runtime}>을 선택하셨습니다.")
             continue
             
         # 3. 시간 여행 방지 (현재 날짜보다 이전인지 확인)
         if scd_date < CURRENT_DATE_STR:
             print("내부 현재 날짜 이전의 날짜입니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {movie_title} | {movie_runtime}>을 선택하셨습니다.")
             continue
             
-        if not RE_DATE.fullmatch(scd_date):
-            info("날짜 형식이 맞지 않습니다. 다시 입력해주세요")
-            continue
         y, m, d = int(scd_date[0:4]), int(scd_date[5:7]), int(scd_date[8:10])
         try:
             date(y, m, d)
         except ValueError:
             info(f"존재하지 않는 날짜입니다. 다시 입력해주세요.")
+            print(f"<{movie_id} | {movie_title} | {movie_runtime}>을 선택하셨습니다.")
             continue
-        return scd_date
+        # return scd_date
     
         # 4. 일일 상영 수 제한 (10개 미만인지 확인)
         cnt = 0
@@ -3620,10 +3637,14 @@ def input_scd_time(movie_id: str, scd_date: str) -> str | None:
         
         if scd_time == "0":
             return None
-            
+
         # 1. 문법 형식 검사
-        if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
+        if not re.fullmatch(r"[0-9][0-9]:[0-9][0-9]", scd_time):
             print("올바르지 않은 입력입니다. 다시 입력해주세요.")
+            continue
+
+        if not re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9]", scd_time):
+            print("범위 밖의 입력입니다. 다시 입력해주세요.")
             continue
         
         running_time = 0

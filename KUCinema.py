@@ -1839,12 +1839,16 @@ def select_movie(selected_date: str) -> dict | None:
         s = input("원하는 영화의 번호를 입력해주세요 : ").strip()
         if not re.fullmatch(r"\d", s or "") or re.search(r"[A-Za-z]", s):
             print("올바르지 않은 입력입니다. 원하는 영화의 번호만 입력해주세요.")
+            print()
+            print(f"{selected_date}의 상영시간표입니다.")
             for i, m in enumerate(movies, start=1):
                 print(f"{i}) {m['date']} {m['time']} | {m['title']}")
             continue
         num = int(s)
         if not (0 <= num <= n):
             print("범위 밖의 입력입니다. 다시 입력해주세요.")
+            print()
+            print(f"{selected_date}의 상영시간표입니다.")
             for i, m in enumerate(movies, start=1):
                 print(f"{i}) {m['date']} {m['time']} | {m['title']}")
             continue
@@ -2929,7 +2933,7 @@ def delete_movie(movie_id: str):
             lines[i] = "/".join(parts) + "\n"
             updated = True
             break # ID는 고유하므로 찾으면 중단
-    
+
     if updated:
         with open(MOVIE_FILE, 'w', encoding='utf-8') as f:
             f.writelines(lines)

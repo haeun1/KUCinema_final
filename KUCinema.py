@@ -2091,10 +2091,18 @@ def menu2() -> None:
         print(f"{LOGGED_IN_SID} 님의 예매 내역이 존재하지 않습니다. 주 프롬프트로 돌아갑니다.")
         return
     else:
+    # 1. 날짜, 시간 순으로 정렬 (가장 가까운 날짜가 리스트 앞쪽으로 옴)
         user_bookings.sort(key=lambda b: (b['date'], b['time']))
+        
+        # 2. [수정 포인트] 10개 이상일 경우 상위 9개만 자르기
+        if len(user_bookings) > 9:
+            user_bookings = user_bookings[:9]
+
+        # 3. 출력
         for i, booking in enumerate(user_bookings, 1):
             seat_list_str = " ".join(booking["seats"])
             print(f"{i}) {booking['date']} {booking['time']} | {booking['title']} | {seat_list_str}")
+            
     print("주 프롬프트로 돌아갑니다.")
 
 
